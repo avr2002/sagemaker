@@ -57,9 +57,9 @@ For now run the notebook.
 
 - [x] Generated a uv lock file
 
-- [] There is some problem installing using `uv`, [conflict with `pyyaml` version](https://github.com/astral-sh/uv/issues/1455) and `protobuf` version for `tensorflow` & `sagemaker` aka DEPENDENCY CONFLICT/HELL.
+- [ ] There is some problem installing using `uv`, [conflict with `pyyaml` version](https://github.com/astral-sh/uv/issues/1455) and `protobuf` version for `tensorflow` & `sagemaker` aka DEPENDENCY CONFLICT/HELL.
 
-- [] Make the code modular and get out of notebooks!!
+- [ ] Make the code modular and get out of notebooks!!
 
 
 ## Contributing
