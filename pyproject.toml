@@ -1,0 +1,125 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel", "cython"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ml-school-avr"
+version = "0.0.1"
+description = "Machine Learning School"
+authors = [{ name = "Amit Vikram Raj", email = "avr13405@gmail.com" }]
+readme = "README.md"
+dependencies = [
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "comet-ml",
+    "scikit-learn",
+    "python-dotenv",
+    "ipytest",
+    "sagemaker",
+    "sagemaker[local]",
+    "tensorflow==2.14",
+    "ruff",
+    "ipykernel",
+    "Flask",
+    "rich",
+]
+license = { text = "Apache-2.0" }
+keywords = ["python"]
+classifiers = ["Programming Language :: Python :: 3"]
+requires-python = ">=3.10"
+
+# If you are getting pyyaml compilation error then: https://github.com/astral-sh/uv/issues/1455
+# [tool.uv]
+# no-build-isolation-package = ["pyyaml"]
+
+
+[tool.black]
+line-length = 119
+# regular expression ignoring multiple patterns separated by '|' and newlines
+exclude = '''
+/(
+    \.venv
+  | venv
+  | *.ipynb
+)/
+'''
+
+[tool.flake8]
+docstring-convention = "all"
+ignore = [
+    "D107",
+    "D212",
+    "E501",
+    "W503",
+    "W605",
+    "D203",
+    "D100",
+    "R701",
+    "D401",
+    # D103: Missing docstring in public function
+    "D103",
+    # D101: Missing docstring in public class
+    "D101",
+    # D102: Missing docstring in public method
+    "D102",
+    # D104: Missing docstring in public package
+    "D104",
+    # D105: Missing docstring in magic method
+    "D105",
+]
+exclude = [".venv"]
+max-line-length = 119
+
+# radon
+radon-max-cc = 10
+
+[tool.isort]
+profile = "black"
+multi_line_output = "VERTICAL_HANGING_INDENT"
+force_grid_wrap = 2
+line_length = 119
+
+[tool.pylint."messages control"]
+disable = [
+    "line-too-long",
+    "trailing-whitespace",
+    "missing-function-docstring",
+    "consider-using-f-string",
+    "import-error",
+    "too-few-public-methods",
+    "redefined-outer-name",
+    "unused-argument",
+    "inconsistent-return-statements",
+    "unsupported-binary-operation",
+    "unsubscriptable-object",
+    "missing-module-docstring",
+]
+
+
+# [tool.ruff]
+# line-length = 88
+# indent-width = 4
+# target-version = "py310"
+# extend-include = ["*.ipynb"]
+
+# [tool.ruff.format]
+# quote-style = "double"
+# indent-style = "space"
+# skip-magic-trailing-comma = false
+# line-ending = "auto"
+
+# [tool.ruff.lint]
+# select = ["ALL"]
+# ignore = [
+#     "ANN001",
+#     "ANN201",
+#     "ANN202",
+#     "B006",
+#     "BLE001",
+#     "E402",
+#     "PD901",
+#     "PLR0913",
+#     "S311",
+#     "T201",
+# ]

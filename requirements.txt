@@ -1,0 +1,14 @@
+numpy
+pandas
+matplotlib
+comet-ml
+scikit-learn
+python-dotenv
+ipytest
+tensorflow==2.14
+sagemaker
+"sagemaker[local]"
+ruff
+ipykernel
+Flask
+rich
