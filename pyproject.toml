@@ -56,7 +56,7 @@ exclude = '''
 /(
     \.venv
   | venv
-  | *.ipynb
+  | .*\.ipynb
 )/
 '''
 
