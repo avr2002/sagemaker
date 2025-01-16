@@ -15,19 +15,34 @@ dependencies = [
     "comet-ml",
     "scikit-learn",
     "python-dotenv",
-    "ipytest",
     "sagemaker",
     "sagemaker[local]",
     "tensorflow==2.14",
-    "ruff",
-    "ipykernel",
     "Flask",
-    "rich",
 ]
 license = { text = "Apache-2.0" }
 keywords = ["python"]
 classifiers = ["Programming Language :: Python :: 3"]
 requires-python = ">=3.10"
+
+
+[project.optional-dependencies]
+test = ["pytest", "pytest-cov", "ipytest"]
+stubs = ["boto3-stubs[s3]"]
+notebooks = ["jupyter", "ipykernel", "rich"]
+static-code-qa = [
+    "pre-commit",
+    "pylint",
+    "black",
+    "isort",
+    "flake8",
+    "flake8-docstrings",
+    "Flake8-pyproject",
+    "radon",
+    "ruff",
+]
+dev = ["ml-school-avr[test, stubs, notebooks, static-code-qa]"]
+
 
 # If you are getting pyyaml compilation error then: https://github.com/astral-sh/uv/issues/1455
 # [tool.uv]

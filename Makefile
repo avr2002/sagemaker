@@ -4,6 +4,11 @@ usage:		    ## Show usage for this Makefile
 install:	    ## Install required dependencies
 	bash run.sh install
 
+lint:		    ## Lint the code
+	bash run.sh lint
+
+lint-ci:		## Lint the code for CI
+	bash run.sh lint:ci
 
 setup-aws:		## Setup AWS for your project
 	bash run.sh setup-aws
