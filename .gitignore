@@ -1,5 +1,6 @@
 .env-aws
 backup/
+notebooks/code/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
