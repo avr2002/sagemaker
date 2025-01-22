@@ -5,13 +5,14 @@ set -e
 AWS_PROFILE="ml.school"
 AWS_REGION="ap-south-1"
 S3_BUCKET_NAME="ml-school-bucket-avr"
+REPOSITORY_NAME="processing-job"  # ECR repository name
 
 THIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 # Data file path
 DATA_FILE_PATH="$THIS_DIR/data/penguins.csv" # Path to the data file on your local machine
 FILE_NAME="$(basename "$DATA_FILE_PATH")"
-S3_FILE_PATH="$FILE_NAME"       # "penguins/data/$FILE_NAME"     # Path to the data file in the S3 bucket
+S3_FILE_PATH="penguins/data/$FILE_NAME"      # Path to the data file in the S3 bucket
 
 
 ##########################
@@ -22,11 +23,11 @@ S3_FILE_PATH="$FILE_NAME"       # "penguins/data/$FILE_NAME"     # Path to the d
 # Install Python dependencies into the currently activated venv
 function install {
     # if uv is not installed, then update the commands as `python -m pip install --upgrade pip`
-	# uv run pip install --upgrade pip
-	# uv run pip install --editable "$THIS_DIR"
+	uv run pip install --upgrade pip
+	uv run pip install --editable "$THIS_DIR/[dev]"
 
-	python -m pip install --upgrade pip
-	python -m pip install --editable "$THIS_DIR/[dev]"
+	# python -m pip install --upgrade pip
+	# python -m pip install --editable "$THIS_DIR/[dev]"
 
     # If using uv and you are getting pyyaml compilation error during installation then follow the below thread:
     # https://github.com/astral-sh/uv/issues/1455
@@ -42,15 +43,67 @@ function set-local-aws-env-vars {
     # export $S3_BUCKET_NAME
 }
 
-# Setup AWS resources for the project
-function setup-aws {
-    set -e
 
+function run-docker {
     # Remove old AWS credentials
     remove-old-aws-credentials
 
     # Append new AWS credentials to .env
     aws configure export-credentials --profile "$AWS_PROFILE" --format env >> .env
+
+    # Set local AWS environment variables
+    set-local-aws-env-vars
+
+    # Build the Docker image and push it to ECR
+    docker-build-image-and-push-to-ecr
+
+    # Run the Docker container
+    docker compose up --remove-orphans --build
+}
+
+
+function docker-build-image-and-push-to-ecr {
+    set -e
+
+    # Check if docker is running
+    if ! docker info > /dev/null 2>&1; then
+        echo "Error: Docker is not running."
+        return 1
+    fi
+
+    # Set local AWS environment variables
+    set-local-aws-env-vars
+
+    # Get the AWS account ID
+    AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+    ECR_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$REPOSITORY_NAME:latest"
+
+    # Build the Docker image
+    docker build --tag $REPOSITORY_NAME .
+
+    # Authenticate Docker to the ECR
+    aws ecr get-login-password --region $AWS_REGION | \
+        docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+    
+    # Ensure that the repository exists
+    aws ecr describe-repositories --repository-names "${REPOSITORY_NAME}" --region ${AWS_REGION} > /dev/null 2>&1 || \
+    aws ecr create-repository --repository-name "${REPOSITORY_NAME}" --region ${AWS_REGION} > /dev/null
+
+    # Tag and push the Docker image to the ECR
+    docker tag $REPOSITORY_NAME:latest $ECR_URI
+    docker push $ECR_URI
+}
+
+
+# Setup AWS resources for the project
+function setup-aws {
+    set -e
+
+    # # Remove old AWS credentials
+    # remove-old-aws-credentials
+
+    # # Append new AWS credentials to .env
+    # aws configure export-credentials --profile "$AWS_PROFILE" --format env >> .env
 
     # Set local AWS environment variables
     set-local-aws-env-vars
@@ -68,7 +121,7 @@ function setup-aws-s3 {
     create-s3-bucket
 
     # Upload data to S3 bucket
-    upload-data-to-s3 "$DATA_FILE_PATH"
+    upload-data-to-s3 "$DATA_FILE_PATH" "$S3_FILE_PATH"
 
     # Set the S3 bucket name in the .env file
     sed -i '/^S3_BUCKET_NAME=/d' .env  # Remove old S3_BUCKET_NAME entry
@@ -79,19 +132,19 @@ function setup-aws-s3 {
 
 # Check if a file exists and upload data to S3 bucket
 function upload-data-to-s3 { ## Check if a file exists and upload it to the S3 bucket
-    # Ensure a file path argument is provided
-    if [[ -z "$1" ]]; then
-        echo "Error: No file path provided."
-        echo "Usage: upload-data-to-s3 <file_path>"
+    # Ensure required arguments are provided
+    if [[ -z "$1" || -z "$2" ]]; then
+        echo "Error: Missing arguments."
+        echo "Usage: upload-data-to-s3 <file_path> <s3_file_path>"
         return 1
     fi
 
     # File to upload
     local file_path="$1"
+    local s3_file_path="$2"
 
     # Extract the file name (base name) from the path
     local file_name=$(basename "$file_path")
-    local s3_file_path="$S3_FILE_PATH"
 
     # Check if the file exists
     if [[ ! -f "$file_path" ]]; then
@@ -151,10 +204,10 @@ function setup-sagemaker-execution-role {
 # Function to remove old AWS credentials from the .env file
 function remove-old-aws-credentials {
     # Delete any lines that export AWS credentials
-    sed -i '/^export AWS_ACCESS_KEY_ID/d' .env
-    sed -i '/^export AWS_SECRET_ACCESS_KEY/d' .env
-    sed -i '/^export AWS_SESSION_TOKEN/d' .env
-    sed -i '/^export AWS_CREDENTIAL_EXPIRATION/d' .env
+    sed -i '' '/^export AWS_ACCESS_KEY_ID/d' .env
+    sed -i '' '/^export AWS_SECRET_ACCESS_KEY/d' .env
+    sed -i '' '/^export AWS_SESSION_TOKEN/d' .env
+    sed -i '' '/^export AWS_CREDENTIAL_EXPIRATION/d' .env
 
     # Ensure there is a new line at the end of the .env file if it's missing, so that the new credentials are on a new line
     if [ "$(tail -c 1 .env)" != "" ]; then

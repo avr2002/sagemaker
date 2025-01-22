@@ -15,10 +15,11 @@ dependencies = [
     "comet-ml",
     "scikit-learn",
     "python-dotenv",
-    "sagemaker",
+    "sagemaker>=2.0.0",
     "sagemaker[local]",
-    "tensorflow==2.14",
-    "Flask",
+    "pyyaml>=5.5",      # v5.4.1 cannot be compiled with setuptools using uv
+    # "tensorflow==2.14",
+    # "Flask",
 ]
 license = { text = "Apache-2.0" }
 keywords = ["python"]
@@ -45,8 +46,8 @@ dev = ["ml-school-avr[test, stubs, notebooks, static-code-qa]"]
 
 
 # If you are getting pyyaml compilation error then: https://github.com/astral-sh/uv/issues/1455
-# [tool.uv]
-# no-build-isolation-package = ["pyyaml"]
+[tool.uv]
+no-build-isolation-package = ["pyyaml"]
 
 
 [tool.black]
@@ -59,6 +60,10 @@ exclude = '''
   | .*\.ipynb
 )/
 '''
+
+
+[tool.mypy]
+disable_error_code = ["import-untyped"]
 
 [tool.flake8]
 docstring-convention = "all"
@@ -109,6 +114,7 @@ disable = [
     "unsupported-binary-operation",
     "unsubscriptable-object",
     "missing-module-docstring",
+    "no-name-in-module",
 ]
 
 

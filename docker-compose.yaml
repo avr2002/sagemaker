@@ -1,0 +1,20 @@
+services:
+  processing-job:
+    image: processing-job:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: processing-job
+    hostname: processing-job
+    env_file:
+      - .env
+    environment:
+      - LOCAL_MODE=true
+    volumes:
+      # - ~/.aws:/root/.aws:ro
+      - ./:/opt/ml/code
+      - ./data:/opt/ml/processing/input
+      # Mount the Docker due to error FileNotFoundError: [Errno 2] No such file or directory: 'docker'
+      - /var/run/docker.sock:/var/run/docker.sock  # Mount the Docker socket
+      - /usr/local/bin/docker:/usr/local/bin/docker  # Mount the Docker binary
+  

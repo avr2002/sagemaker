@@ -4,6 +4,9 @@ usage:		    ## Show usage for this Makefile
 install:	    ## Install required dependencies
 	bash run.sh install
 
+run-docker:		## Build the docker image, push to ECR, and run the container
+	bash run.sh run:docker
+
 lint:		    ## Lint the code
 	bash run.sh lint
 
