@@ -1,13 +1,10 @@
-[build-system]
-requires = ["setuptools>=61.0.0", "wheel", "cython"]
-build-backend = "setuptools.build_meta"
-
 [project]
-name = "ml-school-avr"
-version = "0.0.1"
-description = "Machine Learning School"
-authors = [{ name = "Amit Vikram Raj", email = "avr13405@gmail.com" }]
+name = "penguins"
+version = "0.1.0"
+description = "Add your description here"
 readme = "README.md"
+authors = [{ name = "avr2002", email = "avr13405@gmail.com" }]
+requires-python = ">=3.10"
 dependencies = [
     "numpy",
     "pandas",
@@ -15,132 +12,69 @@ dependencies = [
     "comet-ml",
     "scikit-learn",
     "python-dotenv",
-    "sagemaker>=2.0.0",
-    "sagemaker[local]",
-    "pyyaml>=5.5",      # v5.4.1 cannot be compiled with setuptools using uv
-    # "tensorflow==2.14",
-    # "Flask",
+    "pyyaml>=6.0.2",
+    "sagemaker[local]>=2.249.0",
 ]
-license = { text = "Apache-2.0" }
-keywords = ["python"]
-classifiers = ["Programming Language :: Python :: 3"]
-requires-python = ">=3.10"
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[project.optional-dependencies]
-test = ["pytest", "pytest-cov", "ipytest"]
-stubs = ["boto3-stubs[s3]"]
-notebooks = ["jupyter", "ipykernel", "rich"]
-static-code-qa = [
-    "pre-commit",
-    "pylint",
-    "black",
-    "isort",
-    "flake8",
-    "flake8-docstrings",
-    "Flake8-pyproject",
-    "radon",
-    "ruff",
-]
-dev = ["ml-school-avr[test, stubs, notebooks, static-code-qa]"]
+[dependency-groups]
+cdk = ["aws-cdk-lib>=2.208.0", "constructs>=10.4.2"]
+notebook = ["ipykernel>=6.29.5", "jupyter>=1.1.1", "rich>=13.9.4"]
+static-code-qa = ["pre-commit>=4.2.0", "ruff>=0.12.7"]
+stubs = ["boto3-stubs[s3]>=1.39.17"]
+test = ["ipytest>=0.14.2", "pytest>=8.4.1", "pytest-cov>=6.2.1"]
 
-
-# If you are getting pyyaml compilation error then: https://github.com/astral-sh/uv/issues/1455
-[tool.uv]
-no-build-isolation-package = ["pyyaml"]
-
-
-[tool.black]
+# https://github.com/astral-sh/ruff?tab=readme-ov-file#configuration
+[tool.ruff]
 line-length = 119
-# regular expression ignoring multiple patterns separated by '|' and newlines
-exclude = '''
-/(
-    \.venv
-  | venv
-  | .*\.ipynb
-)/
-'''
 
-
-[tool.mypy]
-disable_error_code = ["import-untyped"]
-
-[tool.flake8]
-docstring-convention = "all"
+# https://docs.astral.sh/ruff/rules/
+[tool.ruff.lint]
+extend-select = [
+    # pycodestyle errors
+    "E",
+    # flake8-bugbear
+    "B",
+    # pylint equivalent rules
+    "PL",
+    # isort
+    "I",
+    # pydocstyle for docstrings
+    "D",
+    # pep8-naming
+    "N",
+]
 ignore = [
-    "D107",
-    "D212",
-    "E501",
-    "W503",
-    "W605",
-    "D203",
-    "D100",
-    "R701",
-    "D401",
-    # D103: Missing docstring in public function
-    "D103",
-    # D101: Missing docstring in public class
-    "D101",
-    # D102: Missing docstring in public method
-    "D102",
-    # D104: Missing docstring in public package
-    "D104",
-    # D105: Missing docstring in magic method
-    "D105",
+    "E501",  # line-too-long
+    "F401",  # unused-import
+    "W605",  # invalid-escape-sequence
+    "W291",  # trailing-whitespace"
+    "UP032", # Use f-string instead of format call
+    # pydocstyle - https://docs.astral.sh/ruff/rules/#pydocstyle-d
+    "D103", # undocumented-public-function
+    "D104", # Missing docstring in public package
+    "D107", # Missing docstring in `__init__`
+    "D203", # incorrect-blank-line-before-class
+    "D100", # undocumented-public-module
+    "D101", # Missing docstring in public class
+    "D102", # Missing docstring in public method
+    "D202", # No blank lines allowed after function docstring
+    "D205", # 1 blank line required between summary line and description
+    "D212", # multi-line-summary-first-line
+    "D400", # first line should end with a period
+    "D401", # first line should be in imperative mood
+    "D415", # First line should end with a period, question mark, or exclamation point
+    # https://docs.astral.sh/ruff/rules/#pylint-pl
+    "PLR2004", # Magic value used in comparison, consider replacing `2` with a constant variable
+    # Magic value used in comparison, consider replacing `4` with a constant variable -- Is problem for tests
+    "PLR2004",
+    # `with` statement variable `tmp_dir` overwritten by assignment target, eg: tests/unit_tests/components/metaflow_project/test__metaflow_project_.py:17:9
+    "PLW2901",
+    "PLC0415", # import should be at the top level of a file
+    "PLR0913", # Too many arguments in function definition
 ]
-exclude = [".venv"]
-max-line-length = 119
-
-# radon
-radon-max-cc = 10
-
-[tool.isort]
-profile = "black"
-multi_line_output = "VERTICAL_HANGING_INDENT"
-force_grid_wrap = 2
-line_length = 119
-
-[tool.pylint."messages control"]
-disable = [
-    "line-too-long",
-    "trailing-whitespace",
-    "missing-function-docstring",
-    "consider-using-f-string",
-    "import-error",
-    "too-few-public-methods",
-    "redefined-outer-name",
-    "unused-argument",
-    "inconsistent-return-statements",
-    "unsupported-binary-operation",
-    "unsubscriptable-object",
-    "missing-module-docstring",
-    "no-name-in-module",
-]
-
-
-# [tool.ruff]
-# line-length = 88
-# indent-width = 4
-# target-version = "py310"
-# extend-include = ["*.ipynb"]
-
-# [tool.ruff.format]
-# quote-style = "double"
-# indent-style = "space"
-# skip-magic-trailing-comma = false
-# line-ending = "auto"
-
-# [tool.ruff.lint]
-# select = ["ALL"]
-# ignore = [
-#     "ANN001",
-#     "ANN201",
-#     "ANN202",
-#     "B006",
-#     "BLE001",
-#     "E402",
-#     "PD901",
-#     "PLR0913",
-#     "S311",
-#     "T201",
-# ]
+[tool.ruff.lint.pydocstyle]
+convention = "google"
