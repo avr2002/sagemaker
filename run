@@ -1,11 +1,20 @@
 #!/bin/bash
 
-set -e
+set -ex
 
-AWS_PROFILE="ml.school"
-AWS_REGION="ap-south-1"
-S3_BUCKET_NAME="ml-school-bucket-avr"
-REPOSITORY_NAME="processing-job"  # ECR repository name
+export AWS_PROFILE=sandbox
+export AWS_REGION=us-east-1
+export AWS_DEFAULT_REGION=${AWS_REGION}
+
+# aws account id/hash used to make a unique, but consistent bucket name
+export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --profile $AWS_PROFILE --query "Account" --output text)
+export AWS_ACCOUNT_ID_HASH=$(echo -n "${AWS_ACCOUNT_ID}" | sha256sum | cut -c5-8)
+
+export S3_BUCKET_NAME="ml-school-bucket-${AWS_ACCOUNT_ID_HASH}" # ml-school-bucket-6721
+
+# REPOSITORY_NAME="processing-job"  # ECR repository name
+# Source the .env file if it exists
+[ -f .env ] && source .env
 
 THIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
@@ -18,6 +27,19 @@ S3_FILE_PATH="penguins/data/$FILE_NAME"      # Path to the data file in the S3 b
 ##########################
 # --- Task Functions --- #
 ##########################
+
+function cdk-bootstrap () {
+    AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+    cdk bootstrap "aws://${AWS_ACCOUNT_ID}/${AWS_REGION}"
+}
+
+function cdk-deploy () {
+    uv run -- cdk deploy --app 'python cdk_app.py' '*' --profile $AWS_PROFILE --region $AWS_REGION
+}
+
+function cdk-destroy () {
+    uv run -- cdk destroy --app 'python cdk_app.py' '*' --profile $AWS_PROFILE --region $AWS_REGION
+}
 
 
 # Install Python dependencies into the currently activated venv
