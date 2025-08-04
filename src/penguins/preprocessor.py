@@ -25,15 +25,12 @@ from penguins.save import (
 )
 
 
-def process_data(base_processing_directory: str | Path = SAGEMAKER_PROCESSING_DIR) -> None:
+def preprocess(base_processing_directory: str | Path = SAGEMAKER_PROCESSING_DIR) -> None:
     """
     Process the data by loading it, splitting it into train, validation and test sets, and saving the processed data.
 
     :param base_processing_directory: Base directory where the raw data is stored.
     """
-    if isinstance(base_processing_directory, str):
-        base_processing_directory = Path(base_processing_directory)
-
     # Load the raw data
     df = load_data(base_processing_directory)
 
@@ -49,15 +46,11 @@ def process_data(base_processing_directory: str | Path = SAGEMAKER_PROCESSING_DI
 
     # Apply Ordinal Encoding to the target variable
     # We apply fit_transform on the train set and transform on the validation and test sets
-    y_train: np.ndarray = target_transformer.fit_transform(
+    y_train = target_transformer.fit_transform(
         np.array(df_train.species.values).reshape(-1, 1),
     )
-    y_validation: np.ndarray = target_transformer.transform(
-        np.array(df_validation.species.values).reshape(-1, 1),
-    )
-    y_test: np.ndarray = target_transformer.transform(
-        np.array(df_test.species.values).reshape(-1, 1),
-    )
+    y_validation = target_transformer.transform(np.array(df_validation.species.values).reshape(-1, 1))
+    y_test = target_transformer.transform(np.array(df_test.species.values).reshape(-1, 1))
 
     # Drop the target variable from the features
     df_train = df_train.drop("species", axis=1)
@@ -66,9 +59,9 @@ def process_data(base_processing_directory: str | Path = SAGEMAKER_PROCESSING_DI
 
     # Apply the preprocessing pipeline to the features
     # We apply fit_transform on the train set and transform on the validation and test sets
-    X_train: np.ndarray = features_transformer.fit_transform(df_train)
-    X_validation: np.ndarray = features_transformer.transform(df_validation)
-    X_test: np.ndarray = features_transformer.transform(df_test)
+    X_train = features_transformer.fit_transform(df_train)
+    X_validation = features_transformer.transform(df_validation)
+    X_test = features_transformer.transform(df_test)
 
     # Save the split data
     save_split_data(X_train, y_train, X_validation, y_validation, X_test, y_test)
@@ -84,10 +77,13 @@ def preprocess_pipeline() -> Tuple[ColumnTransformer, ColumnTransformer]:
     :return: Tuple of ColumnTransformers (features_transformer, target_transformer).
     """
 
-    target_transformer: ColumnTransformer = ColumnTransformer(transformers=[("species", OrdinalEncoder(), [0])])
+    target_transformer = ColumnTransformer(transformers=[("species", OrdinalEncoder(), [0])])
 
     # Impute the missing numeric values with their respective mean and scale the data
-    numeric_transformer = make_pipeline(SimpleImputer(strategy="mean"), StandardScaler())
+    numeric_transformer = make_pipeline(
+        SimpleImputer(strategy="mean"),
+        StandardScaler(),
+    )
 
     # Impute the most frequent value for the categorical variables and one-hot encode it
     categorical_transformer = make_pipeline(
@@ -96,12 +92,12 @@ def preprocess_pipeline() -> Tuple[ColumnTransformer, ColumnTransformer]:
     )
 
     # @TODO: Later read the feature names & target name from config file
-    features_transformer: ColumnTransformer = ColumnTransformer(
+    features_transformer = ColumnTransformer(
         transformers=[
             ("numeric", numeric_transformer, make_column_selector(dtype_exclude="object")),
             # Select the 'island' column and apply the categorical transformer
-            # We're dropping 'sex' column as it does not have any predictive power(see EDA).
             ("categorical", categorical_transformer, ["island"]),
+            # We're dropping 'sex' column as it does not have any predictive power(see EDA).
         ],
     )
 
@@ -127,3 +123,8 @@ def split_data(
     df_validation, df_test = train_test_split(df_valid_test, test_size=test_size, random_state=random_state)
 
     return (df_train, df_validation, df_test)
+
+
+if __name__ == "__main__":
+    preprocess(base_processing_directory=SAGEMAKER_PROCESSING_DIR)
+    print("Data preprocessing completed successfully.")

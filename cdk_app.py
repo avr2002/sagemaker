@@ -8,6 +8,7 @@
 
 
 # Official AWS Samples Repo Guide - https://github.com/aws-samples/aws-cdk-sagemaker-studio/tree/main
+# https://aws.amazon.com/blogs/machine-learning/automate-amazon-sagemaker-studio-setup-using-aws-cdk/
 
 import os
 

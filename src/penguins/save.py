@@ -26,10 +26,8 @@ def save_processing_pipeline_model(
 
     :return: None
     """
-    if isinstance(base_processing_directory, str):
-        base_processing_directory = Path(base_processing_directory)
-
     # model path
+    base_processing_directory = Path(base_processing_directory)
     model_path = base_processing_directory / "model"
     model_path.mkdir(parents=True, exist_ok=True)
 
@@ -69,10 +67,8 @@ def save_split_data(
     Returns:
         None
     """
-    if isinstance(base_processing_directory, str):
-        base_processing_directory = Path(base_processing_directory)
-
     # Construct the split data path
+    base_processing_directory = Path(base_processing_directory)
     train_path = base_processing_directory / "train"
     validation_path = base_processing_directory / "validation"
     test_path = base_processing_directory / "test"
@@ -122,9 +118,6 @@ def save_baseline_data(
         raise ValueError("target_column must be specified for the 'train' dataset type.")
 
     # Construct the baseline path
-    if isinstance(base_processing_directory, str):
-        base_processing_directory = Path(base_processing_directory)
-
     baseline_path = Path(base_processing_directory) / f"{dataset_type}-baseline"
     baseline_path.mkdir(parents=True, exist_ok=True)
 
