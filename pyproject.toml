@@ -6,14 +6,13 @@ readme = "README.md"
 authors = [{ name = "avr2002", email = "avr13405@gmail.com" }]
 requires-python = ">=3.9"
 dependencies = [
-    "numpy",
-    "pandas",
-    "matplotlib",
-    "comet-ml",
-    "scikit-learn",
-    "python-dotenv",
-    "pyyaml>=6.0.2",
     "sagemaker[local]>=2.249.0",
+    "keras>=3.10.0",
+    "numpy>=1.26.4",
+    "pandas>=2.3.1",
+    "scikit-learn>=1.6.1",
+    "python-dotenv>=1.1.1",
+    "comet-ml>=3.50.0",
 ]
 
 [build-system]

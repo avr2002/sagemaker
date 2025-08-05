@@ -30,6 +30,7 @@ def preprocess(base_processing_directory: Union[str, Path] = SAGEMAKER_PROCESSIN
     Process the data by loading it, splitting it into train, validation and test sets, and saving the processed data.
 
     :param base_processing_directory: Base directory where the raw data is stored.
+        defaults to '/opt/ml/processing'.
     """
     # Load the raw data
     df = load_data(base_processing_directory)

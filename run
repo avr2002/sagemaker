@@ -68,7 +68,7 @@ function run-docker {
     remove-old-aws-credentials
 
     # Append new AWS credentials to .env
-    aws configure export-credentials --profile "$AWS_PROFILE" --format env >> .env
+    aws configure export-credentials --profile "$AWS_PROFILE" --format env > .env-aws
 
     # Build the Docker image and push it to ECR
     # docker-build-image-and-push-to-ecr

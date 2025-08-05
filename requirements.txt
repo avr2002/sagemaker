@@ -1,0 +1,12 @@
+# I had to manually pin the versions of some packages in requirements.txt to avoid dependency conflicts.
+
+# .  # Not installing the local package becuase of dependency conflicts
+boto3==1.28.57
+botocore<1.32.0,>=1.31.57
+sagemaker[local]
+keras
+numpy==1.24.1
+pandas
+scikit-learn
+python-dotenv
+typing-extensions

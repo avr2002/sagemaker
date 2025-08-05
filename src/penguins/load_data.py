@@ -34,8 +34,7 @@ def load_data(
 
     :return: Pandas DataFrame.
     """
-    if isinstance(base_processing_directory, str):
-        base_processing_directory = Path(base_processing_directory)
+    base_processing_directory = Path(base_processing_directory)
 
     input_directory = base_processing_directory / "input"
     csv_files = list(input_directory.glob("*.csv"))
