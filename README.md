@@ -1,6 +1,4 @@
-# Machine Learning School
-
-This repository contains my *modified* source code of the [Machine Learning School](https://www.ml.school).
+# MLOps on Sagemaker
 
 
 ## Setup
