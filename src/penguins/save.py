@@ -1,7 +1,7 @@
 import tarfile
 import tempfile
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional, Union
 
 import joblib
 import numpy as np
@@ -14,7 +14,7 @@ from penguins.consts import SAGEMAKER_PROCESSING_DIR
 def save_processing_pipeline_model(
     features_transformer: ColumnTransformer,
     target_transformer: ColumnTransformer,
-    base_processing_directory: str | Path = SAGEMAKER_PROCESSING_DIR,
+    base_processing_directory: Union[str, Path] = SAGEMAKER_PROCESSING_DIR,
 ) -> None:
     """
     Save the pre-processing pipeline model to disk in SageMaker Processing directory.
@@ -48,7 +48,7 @@ def save_split_data(
     y_validation: np.ndarray,
     X_test: np.ndarray,
     y_test: np.ndarray,
-    base_processing_directory: str | Path = SAGEMAKER_PROCESSING_DIR,
+    base_processing_directory: Union[str, Path] = SAGEMAKER_PROCESSING_DIR,
 ) -> None:
     """
     This function concatenates the transformed features and the target variable, and
@@ -91,8 +91,8 @@ def save_split_data(
 def save_baseline_data(
     data: pd.DataFrame,
     dataset_type: Literal["train", "test"],
-    target_column: str | None = "species",
-    base_processing_directory: str | Path = SAGEMAKER_PROCESSING_DIR,
+    target_column: Optional[str] = "species",
+    base_processing_directory: Union[str, Path] = SAGEMAKER_PROCESSING_DIR,
 ) -> None:
     """
     Save the untransformed data (train or test) to disk as a baseline.

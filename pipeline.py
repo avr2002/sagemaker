@@ -39,6 +39,23 @@ sklearn_processor = SKLearnProcessor(
     sagemaker_session=sagemaker_session,
 )
 
+# script_processor = ScriptProcessor(
+#     base_job_name="data-preprocessing",
+#     image_uri="processing-job:latest",  # Use local image instead of ECR
+#     command=["python3"],
+#     role=SAGEMAKER_EXECUTION_ROLE,
+#     instance_type="local",
+#     instance_count=1,
+#     sagemaker_session=sagemaker_session,
+# )
+
+# Use local paths when in local mode
+# if os.getenv("LOCAL_MODE") == "true":
+#     # Use local file system paths for local mode
+#     s3_output_prefix = "./output/preprocessing"
+# else:
+#     s3_output_prefix = f"{S3_LOCATION}/preprocessing"
+
 preprocessing_step = ProcessingStep(
     name="data-preprocessing",
     step_args=sklearn_processor.run(
@@ -65,7 +82,9 @@ pipeline = Pipeline(
     steps=[preprocessing_step],
     sagemaker_session=sagemaker_session,
 )
-pipeline.upsert(role_arn=SAGEMAKER_EXECUTION_ROLE)
 
 if __name__ == "__main__":
+    # # Note: sagemaker.get_execution_role does not work outside sagemaker
+    # role = sagemaker.get_execution_role()
+    pipeline.upsert(role_arn=SAGEMAKER_EXECUTION_ROLE)
     pipeline.start()

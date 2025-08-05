@@ -1,8 +1,10 @@
 # Extras
 notebooks/
-data/
+# data/
 backup/
 container/
+code/
+scripts/
 
 # Git
 .git

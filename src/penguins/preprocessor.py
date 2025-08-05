@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Tuple
+from typing import Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -25,7 +25,7 @@ from penguins.save import (
 )
 
 
-def preprocess(base_processing_directory: str | Path = SAGEMAKER_PROCESSING_DIR) -> None:
+def preprocess(base_processing_directory: Union[str, Path] = SAGEMAKER_PROCESSING_DIR) -> None:
     """
     Process the data by loading it, splitting it into train, validation and test sets, and saving the processed data.
 
@@ -108,7 +108,7 @@ def split_data(
     df: pd.DataFrame,
     train_size: float = 0.7,
     test_size: float = 0.5,
-    random_state: int | None = None,
+    random_state: Optional[int] = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Split the data into train, validation and test sets. The default split is 70% train, 15% validation, 15% test.

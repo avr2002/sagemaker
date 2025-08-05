@@ -1,7 +1,7 @@
 """Load Data Step."""
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import boto3
 import pandas as pd
@@ -20,8 +20,8 @@ except ImportError:
 
 
 def load_data(
-    base_processing_directory: str | Path = SAGEMAKER_PROCESSING_DIR,
-    random_state: int | None = None,
+    base_processing_directory: Union[str, Path] = SAGEMAKER_PROCESSING_DIR,
+    random_state: Optional[int] = None,
 ) -> pd.DataFrame:
     """
     Load CSV data inside SageMaker Processing container.
@@ -50,7 +50,7 @@ def load_data(
     return df.sample(frac=1, random_state=random_state)
 
 
-def load_data_from_disk(file_path: Path | str) -> pd.DataFrame:
+def load_data_from_disk(file_path: Union[Path, str]) -> pd.DataFrame:
     """
     Load data from disk into a pandas DataFrame.
 
