@@ -1,3 +1,6 @@
+# CDK
+**/cdk.out/
+
 .env-aws
 backup/
 notebooks/code/

@@ -1,11 +1,13 @@
 """Load Data Step."""
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import boto3
 import pandas as pd
 from botocore.exceptions import ClientError
+
+from penguins.consts import SAGEMAKER_PROCESSING_DIR
 
 try:
     from mypy_boto3_s3 import S3Client
@@ -17,10 +19,41 @@ except ImportError:
     ...
 
 
-def load_data_from_disk(file_path: Path | str) -> pd.DataFrame:
+def load_data(
+    base_processing_directory: Union[str, Path] = SAGEMAKER_PROCESSING_DIR,
+    random_state: Optional[int] = None,
+) -> pd.DataFrame:
+    """
+    Load CSV data inside SageMaker Processing container.
+    This function reads every CSV file available and
+    concatenates them into a single dataframe.
+
+    :param base_processing_directory: Base directory where the pre-processing data is stored.
+                                      Defaults to '/opt/ml/processing'.
+    :param random_state: Random seed for shuffling the data.
+
+    :return: Pandas DataFrame.
+    """
+    if isinstance(base_processing_directory, str):
+        base_processing_directory = Path(base_processing_directory)
+
+    input_directory = base_processing_directory / "input"
+    csv_files = list(input_directory.glob("*.csv"))
+
+    if len(csv_files) == 0:
+        raise ValueError(f"No CSV files found in {input_directory.as_posix()}")
+
+    raw_data = [pd.read_csv(file) for file in csv_files]
+    df = pd.concat(raw_data)
+
+    # Shuffle the data
+    return df.sample(frac=1, random_state=random_state)
+
+
+def load_data_from_disk(file_path: Union[Path, str]) -> pd.DataFrame:
     """
     Load data from disk into a pandas DataFrame.
-    
+
     :param file_path: Path to the data file.
     :return: Pandas DataFrame.
     """
@@ -28,16 +61,15 @@ def load_data_from_disk(file_path: Path | str) -> pd.DataFrame:
         return pd.read_csv(file_path)
     else:
         raise FileNotFoundError(f"File not found: {file_path}")
-    
 
 
 def load_data_from_s3(bucket: str, object_key: str, s3_client: Optional["S3Client"] = None) -> pd.DataFrame:
     """
     Load data from S3 into a pandas DataFrame.
-    
+
     :param bucket: S3 bucket name.
     :param object_key: S3 key.
-    
+
     :return: Pandas DataFrame.
     """
     if object_exists_in_s3(bucket, object_key):
@@ -72,7 +104,3 @@ def object_exists_in_s3(  # type: ignore
         if error_code == "404":
             return False
         raise
-
-
-    
-    

@@ -1,0 +1,25 @@
+services:
+  processing-job:
+    image: processing-job:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      platforms:
+        - linux/amd64
+    container_name: processing-job
+    hostname: processing-job
+    env_file:
+      - .env
+    environment:
+      - LOCAL_MODE=true
+      - AWS_DEFAULT_REGION=us-east-1
+    volumes:
+      - ./:/opt/ml/processing/input/code
+      - ./data:/opt/ml/processing/input
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Mount tmp directory for SageMaker local mode
+      - /tmp:/tmp
+      # Create local directories for SageMaker outputs
+      - ./output:/opt/ml/processing/output
+      - ./sagemaker-local:/home/model-server
+
