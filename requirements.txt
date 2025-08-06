@@ -10,3 +10,4 @@ pandas
 scikit-learn
 python-dotenv
 typing-extensions
+comet-ml

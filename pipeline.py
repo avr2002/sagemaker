@@ -11,14 +11,13 @@ from sagemaker.processing import FrameworkProcessor, ProcessingInput, Processing
 from sagemaker.tensorflow.estimator import TensorFlow
 from sagemaker.workflow.parameters import ParameterString
 from sagemaker.workflow.pipeline import Pipeline
-from sagemaker.workflow.pipeline_context import LocalPipelineSession
+from sagemaker.workflow.pipeline_context import LocalPipelineSession, PipelineSession
+
+# from sagemaker.sklearn.processing import SKLearnProcessor
+from sagemaker.workflow.pipeline_definition_config import PipelineDefinitionConfig
 from sagemaker.workflow.steps import CacheConfig, ProcessingStep, TrainingStep
 
 from penguins.consts import BUCKET, S3_LOCATION, SAGEMAKER_EXECUTION_ROLE, SAGEMAKER_PROCESSING_DIR, SRC_DIR
-
-# from sagemaker.sklearn.processing import SKLearnProcessor
-# from sagemaker.workflow.pipeline_definition_config import PipelineDefinitionConfig
-
 
 # Load environment variables from .env file
 load_dotenv()
@@ -31,12 +30,23 @@ env_vars = {
 }
 
 # Create a local Sagemaker session
-sagemaker_session = LocalPipelineSession(default_bucket=BUCKET)
+sagemaker_session = (
+    LocalPipelineSession(default_bucket=BUCKET)
+    if env_vars["LOCAL_MODE"] == "true"
+    else PipelineSession(default_bucket=BUCKET)
+)
+# https://docs.aws.amazon.com/sagemaker/latest/dg/notebooks-available-instance-types.html
+# locally instance_type can also be "local_gpu"
+instance_type = "local" if env_vars["LOCAL_MODE"] == "true" else "ml.m5.2xlarge"  # "ml.m5.xlarge"
 
 # WARNING:sagemaker.workflow.utilities:Popping out 'ProcessingJobName' from the pipeline definition
 # by default since it will be overridden at pipeline execution time.
 # Please utilize the PipelineDefinitionConfig to persist this field in the pipeline definition if desired.
-# pipeline_definition_config = PipelineDefinitionConfig(use_custom_job_prefix=True)
+
+# WARNING:sagemaker.workflow.utilities:Popping out 'TrainingJobName' from the pipeline definition
+# by default since it will be overridden at pipeline execution time.
+# Please utilize the PipelineDefinitionConfig to persist this field in the pipeline definition if desired.
+pipeline_definition_config = PipelineDefinitionConfig(use_custom_job_prefix=True)
 
 # define a parameter for the input data
 dataset_location = ParameterString(name="dataset-location", default_value=f"{S3_LOCATION}/data/")
@@ -50,12 +60,11 @@ est_cls = sagemaker.sklearn.estimator.SKLearn
 # ref: https://docs.aws.amazon.com/sagemaker/latest/dg/sklearn.html
 framework_version_str = "1.2-1"  # Sagemaker Scikit-learn version
 
-
 framework_processor = FrameworkProcessor(
     base_job_name="data-preprocessing",
     role=SAGEMAKER_EXECUTION_ROLE,
     instance_count=1,
-    instance_type="local",
+    instance_type=instance_type,
     estimator_cls=est_cls,
     framework_version=framework_version_str,
     sagemaker_session=sagemaker_session,
@@ -126,7 +135,7 @@ preprocessing_step = ProcessingStep(
 
 # To test your training pipeline locally, we need to build a custom arm compatible Docker image for M-series Mac.
 # docker build -t sagemaker-tf-training-toolkit-arm64:latest container/
-image_uri = "sagemaker-tf-training-toolkit-arm64:latest"
+image_uri = "sagemaker-tf-training-toolkit-arm64:latest" if env_vars["LOCAL_MODE"] == "true" else None
 
 tf_estimator = TensorFlow(
     base_job_name="training",
@@ -154,7 +163,7 @@ tf_estimator = TensorFlow(
     image_uri=image_uri,
     framework_version="2.12.0",
     py_version="py310",
-    instance_type="local",
+    instance_type=instance_type,
     instance_count=1,
     disable_profiler=True,
     debugger_hook_config=False,
@@ -187,13 +196,14 @@ training_step = TrainingStep(
 
 # Create the pipeline
 pipeline = Pipeline(
-    name="data-preprocessing-pipeline",
+    name="e2e-ml-pipeline",
     parameters=[dataset_location],
     steps=[
         preprocessing_step,
         training_step,
     ],
     sagemaker_session=sagemaker_session,
+    pipeline_definition_config=pipeline_definition_config,
 )
 
 if __name__ == "__main__":
