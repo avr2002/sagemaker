@@ -23,11 +23,21 @@ def train(
     model_directory: Union[str, Path],
     train_path: Union[str, Path],
     validation_path: Union[str, Path],
-    pipeline_path: Union[str, Path],
+    preprocessing_pipeline_path: Union[str, Path],
     experiment: Optional[Experiment],
     epochs: int = 50,
     batch_size: int = 32,
-):
+) -> None:
+    """Train a Keras model.
+
+    :param model_directory: Directory to save the trained model.
+    :param train_path: Path to the training data.
+    :param validation_path: Path to the validation data.
+    :param preprocessing_pipeline_path: Path to the pipeline artifacts.
+    :param experiment: Comet ML experiment object.
+    :param epochs: Number of training epochs.
+    :param batch_size: Training batch size.
+    """
     print(f"Keras version: {keras.__version__}")
 
     X_train = pd.read_csv(Path(train_path) / "train.csv")
@@ -80,7 +90,7 @@ def train(
 
     # Let's save the transformation pipelines inside the
     # model directory so they get bundled together.
-    with tarfile.open(Path(pipeline_path) / "model.tar.gz", mode="r:gz") as tar:
+    with tarfile.open(Path(preprocessing_pipeline_path) / "model.tar.gz", mode="r:gz") as tar:
         tar.extractall(model_directory)
 
     if experiment:
@@ -141,7 +151,11 @@ if __name__ == "__main__":
         # to the Training Step.
         train_path=os.environ["SM_CHANNEL_TRAIN"],
         validation_path=os.environ["SM_CHANNEL_VALIDATION"],
-        pipeline_path=os.environ["SM_CHANNEL_PIPELINE"],
+        # Sagemaker does not automatically converts dashes to underscores in channel names
+        # So, if a channel name is "preprocessing-pipeline", then the corresponding env var for it will be "SM_CHANNEL_PREPROCESSING-PIPELINE"
+        # https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_Channel.html
+        # https://pypi.org/project/sagemaker-containers/#important-environment-variables
+        preprocessing_pipeline_path=os.environ["SM_CHANNEL_PREPROCESSING-PIPELINE"],
         experiment=experiment,
         epochs=args.epochs,
         batch_size=args.batch_size,

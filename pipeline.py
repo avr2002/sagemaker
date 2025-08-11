@@ -30,9 +30,9 @@ load_dotenv()
 env_vars = {
     "COMET_API_KEY": os.getenv("COMET_API_KEY", ""),
     "COMET_PROJECT_NAME": os.getenv("COMET_PROJECT_NAME", ""),
-    "S3_BUCKET_NAME": os.getenv("S3_BUCKET_NAME", ""),
-    "SAGEMAKER_EXECUTION_ROLE": os.getenv("SAGEMAKER_EXECUTION_ROLE", ""),
-    "LOCAL_MODE": os.getenv("LOCAL_MODE", ""),
+    "S3_BUCKET_NAME": os.environ["S3_BUCKET_NAME"],
+    "SAGEMAKER_EXECUTION_ROLE": os.environ["SAGEMAKER_EXECUTION_ROLE"],
+    "LOCAL_MODE": os.environ["LOCAL_MODE"],
 }
 
 
@@ -61,13 +61,13 @@ pipeline_definition_config = PipelineDefinitionConfig(use_custom_job_prefix=True
 dataset_location = ParameterString(name="dataset-location", default_value=f"{S3_LOCATION}/data/")
 
 # Setup Cache for the pipeline step
-cache_config = CacheConfig(enable_caching=True, expire_after="T3H")  # 3 hours
+cache_config = CacheConfig(enable_caching=False, expire_after="T3H")  # 3 hours
 
 
 # ref: https://github.com/aws/amazon-sagemaker-examples/blob/main/sagemaker_processing/scikit_learn_data_processing_and_model_evaluation/scikit_learn_data_processing_and_model_evaluation.ipynb
 est_cls = sagemaker.sklearn.estimator.SKLearn
 # ref: https://docs.aws.amazon.com/sagemaker/latest/dg/sklearn.html
-framework_version_str = "1.2-1"  # Sagemaker Scikit-learn version
+framework_version_str = "1.2-1"  # Sagemaker available Scikit-learn version
 
 framework_processor = FrameworkProcessor(
     base_job_name="data-preprocessing",
@@ -78,6 +78,8 @@ framework_processor = FrameworkProcessor(
     framework_version=framework_version_str,
     sagemaker_session=sagemaker_session,
     env=env_vars,
+    # Control where preprocessing code artifacts are stored
+    code_location=f"{S3_LOCATION}/preprocessing/",
     # py_version="py3",
 )
 
@@ -99,7 +101,14 @@ preprocessing_step = ProcessingStep(
                 source=f"{SAGEMAKER_PROCESSING_DIR}/{output_name}",
                 destination=f"{S3_LOCATION}/preprocessing/{output_name}",
             )
-            for output_name in ["train", "validation", "test", "model", "train-baseline", "test-baseline"]
+            for output_name in [
+                "train",
+                "validation",
+                "test",
+                "preprocessing-pipeline",
+                "train-baseline",
+                "test-baseline",
+            ]
         ],
     ),
     cache_config=cache_config,
@@ -135,6 +144,10 @@ custom_estimator = Estimator(
         {"Name": "val_loss", "Regex": "val_loss: ([0-9\\.]+)"},
         {"Name": "val_accuracy", "Regex": "val_accuracy: ([0-9\\.]+)"},
     ],
+    # Control where the model gets saved in S3
+    output_path=f"{S3_LOCATION}/training/",
+    # Control where training code artifacts are stored
+    code_location=f"{S3_LOCATION}/training/",
     instance_type=instance_type,
     instance_count=1,
     disable_profiler=True,
@@ -143,6 +156,13 @@ custom_estimator = Estimator(
     sagemaker_session=sagemaker_session,
 )
 
+# For Sagemaker Training, the inputs to the pipeline can be access with the environment variables prefixed with "SM_CHANNEL_"
+# The env var, "SM_CHANNELS", contains the list of all the inputs
+# https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_Channel.html
+# https://pypi.org/project/sagemaker-containers/#important-environment-variables
+
+# NOTE: Sagemaker does not automatically converts dashes to underscores in channel names
+# So, if a channel name is "preprocessing-pipeline", then the corresponding env var for it will be "SM_CHANNEL_PREPROCESSING-PIPELINE"
 training_step = TrainingStep(
     name="train-model",
     step_args=custom_estimator.fit(
@@ -150,14 +170,16 @@ training_step = TrainingStep(
             "train": TrainingInput(
                 s3_data=preprocessing_step.properties.ProcessingOutputConfig.Outputs["train"].S3Output.S3Uri,
                 content_type="text/csv",
-                # input_mode=
+                # input_mode=  # Explore different input modes
             ),
             "validation": TrainingInput(
                 s3_data=preprocessing_step.properties.ProcessingOutputConfig.Outputs["validation"].S3Output.S3Uri,
                 content_type="text/csv",
             ),
-            "pipeline": TrainingInput(
-                s3_data=preprocessing_step.properties.ProcessingOutputConfig.Outputs["model"].S3Output.S3Uri,
+            "preprocessing-pipeline": TrainingInput(
+                s3_data=preprocessing_step.properties.ProcessingOutputConfig.Outputs[
+                    "preprocessing-pipeline"
+                ].S3Output.S3Uri,
                 content_type="application/tar+gzip",
             ),
         },
@@ -183,3 +205,32 @@ if __name__ == "__main__":
     # role = sagemaker.get_execution_role()
     pipeline.upsert(role_arn=SAGEMAKER_EXECUTION_ROLE)
     pipeline.start()
+
+
+
+# Using "code_location" argument in the steps, where Sagemaker uploads the code artifacts
+# But in pre-processing job has a sagemaker managed shellscript called "runproc.sh" which is not uploaded in
+# the specified code location.
+
+# """
+# s3://ml-school-bucket-6721/
+# ├── penguins/
+# │   ├── data/
+# │   ├── preprocessing/
+# │   │   ├── e2e-ml-pipeline/
+# │   │   │   └── code/
+# │   │   │       └── 4472b7991005fc3aaeacc2e77f357aea29c1ee50a9624ff03f8a6884f4eb4015/
+# │   │   │           └── sourcedir.tar.gz
+# │   ├── training/
+# │   │   ├── custom-training-job-5w5r8jajcdeo-nX2fnIHvDU/
+# │   │   │   └── output/
+# │   │   │       └── model.tar.gz
+# │   │   └── e2e-ml-pipeline/
+# │   │       └── code/
+# │   │           └── e5ad0140453be771469b5c4acc7df805d47dc3e82435e16aac4d4e153e67442c/
+# │   │               └── sourcedir.tar.gz
+# ├── e2e-ml-pipeline/
+# │   └── code/
+# │       └── f036ce328456a216b40166796ad96c92cd30a9c2ef4bda333085138e7d9b80c0/
+# │           └── runproc.sh
+# """

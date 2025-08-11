@@ -1,7 +1,7 @@
 # Sagemaker Training Custom Container -- Using Keras
 # https://github.com/aws/sagemaker-training-toolkit/tree/master
 
-FROM --platform=linux/amd64 python:3.10-slim-bookworm
+FROM python:3.10-slim-bookworm
 
 # Install system dependencies including build tools for compiling packages
 RUN apt-get update && \

@@ -26,17 +26,17 @@ def save_processing_pipeline_model(
 
     :return: None
     """
-    # model path
+    # preprocessing-pipeline path
     base_processing_directory = Path(base_processing_directory)
-    model_path = base_processing_directory / "model"
-    model_path.mkdir(parents=True, exist_ok=True)
+    preprocessing_pipeline_path = base_processing_directory / "preprocessing-pipeline"
+    preprocessing_pipeline_path.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory() as temp_dir:
         joblib.dump(features_transformer, Path(temp_dir) / "features_transformer.joblib")
         joblib.dump(target_transformer, Path(temp_dir) / "target_transformer.joblib")
 
         # Zip and move the files to the base processing directory
-        with tarfile.open(model_path / "model.tar.gz", "w:gz") as tar:
+        with tarfile.open(preprocessing_pipeline_path / "model.tar.gz", "w:gz") as tar:
             tar.add(Path(temp_dir) / "features_transformer.joblib", arcname="features_transformer.joblib")
             tar.add(Path(temp_dir) / "target_transformer.joblib", arcname="target_transformer.joblib")
 

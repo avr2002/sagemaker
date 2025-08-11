@@ -74,9 +74,13 @@ def build_and_push_docker_image(
 
 def _build_docker_image(repository_name: str, dockerfile_fpath: Path, tag: str = "latest") -> None:
     """Build Docker image locally."""
+    if os.environ["LOCAL_MODE"] == "true":
+        command = f"docker build -t {repository_name}:{tag} {str(dockerfile_fpath)}"
+    else:
+        command = f"docker build --platform linux/amd64 -t {repository_name}:{tag} {str(dockerfile_fpath)}"
     try:
         subprocess.run(
-            ["docker", "build", "--platform", "linux/amd64", "-t", f"{repository_name}:{tag}", str(dockerfile_fpath)],
+            command.split(),
             check=True,
             # capture_output=True,
             # text=True,
