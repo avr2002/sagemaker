@@ -1,0 +1,39 @@
+# Sagemaker Training Custom Container -- Using Keras
+# https://github.com/aws/sagemaker-training-toolkit/tree/master
+
+FROM --platform=linux/amd64 python:3.10-slim-bookworm
+
+# Install system dependencies including build tools for compiling packages
+RUN apt-get update && \
+    apt-get install -y build-essential gcc && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install deps
+# Install sagemaker-training toolkit that contains the common functionality necessary to create a container compatible with SageMaker AI and the Python SDK.
+RUN pip install --user --upgrade pip
+RUN pip install --no-cache-dir \
+    numpy>=1.26 \
+    keras>=3 \
+    jax[cpu] \
+    sagemaker-training \
+    scikit-learn \
+    pandas \
+    comet-ml
+
+# Set the working directory
+WORKDIR /opt/ml/code/
+
+# COPY train.py /opt/ml/code/train.py
+
+# # The training script must be located in the /opt/ml/code directory.
+# # The environment variable SAGEMAKER_PROGRAM defines which file inside the /opt/ml/code 
+# # directory to use as the training entry point. When training starts, the interpreter executes the entry point defined by SAGEMAKER_PROGRAM.
+# # Python and shell scripts are both supported.
+# ENV SAGEMAKER_PROGRAM train.py
+
+# Force Python to run in unbuffered mode - ensures stdout/stderr are not buffered
+# This makes logs appear immediately in Docker, which is useful for debugging and monitoring
+ENV PYTHONUNBUFFERED=TRUE
+
+# We want to use JAX as the backend for Keras.
+ENV KERAS_BACKEND=jax

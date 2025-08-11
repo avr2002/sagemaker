@@ -24,11 +24,13 @@ Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/) before r
     ./run cdk-deploy
     ```
 
-<!-- - Create a `.env` file and add
+- Create a `.env` file and add
   - `COMET_API_KEY`, `COMET_PROJECT_NAME`
-  - `S3_BUCKET_NAME`, `SAGEMAKER_EXECUTION_ROLE` -->
+  - `S3_BUCKET_NAME`, `SAGEMAKER_EXECUTION_ROLE`
 
 
+
+https://github.com/aws/amazon-sagemaker-examples/tree/main
 
 ## Contributing
 

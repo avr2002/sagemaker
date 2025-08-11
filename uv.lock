@@ -309,6 +309,9 @@ wheels = [
 ]
 
 [package.optional-dependencies]
+ecr = [
+    { name = "mypy-boto3-ecr" },
+]
 s3 = [
     { name = "mypy-boto3-s3" },
 ]
@@ -1872,6 +1875,18 @@ wheels = [
 ]
 
 [[package]]
+name = "mypy-boto3-ecr"
+version = "1.40.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions", marker = "python_full_version < '3.12'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/61/10/076d964b9aa733ddf2e1a60e0ebd1b46afe2d9ce56eea29ee7e60f0eaabf/mypy_boto3_ecr-1.40.0.tar.gz", hash = "sha256:7733e42bc8a92ffd93bebf0343af133fd52698ffebd323d82ffde755ce28687f", size = 34328, upload-time = "2025-07-31T19:41:17.442Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bc/c7/d02932049bac4b7c7dc3d1b5eb9edfe1a5fa7b094449f1d2cf6abd8aaf16/mypy_boto3_ecr-1.40.0-py3-none-any.whl", hash = "sha256:d887c00f908d2cac911723b1f170d8561d8d4325c8280b0fe04fba399199cafe", size = 40250, upload-time = "2025-07-31T19:41:14.074Z" },
+]
+
+[[package]]
 name = "mypy-boto3-s3"
 version = "1.40.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2288,7 +2303,7 @@ static-code-qa = [
     { name = "ruff" },
 ]
 stubs = [
-    { name = "boto3-stubs", extra = ["s3"] },
+    { name = "boto3-stubs", extra = ["ecr", "s3"] },
 ]
 test = [
     { name = "ipytest" },
@@ -2321,7 +2336,7 @@ static-code-qa = [
     { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "ruff", specifier = ">=0.12.7" },
 ]
-stubs = [{ name = "boto3-stubs", extras = ["s3"], specifier = ">=1.39.17" }]
+stubs = [{ name = "boto3-stubs", extras = ["ecr", "s3"], specifier = ">=1.39.17" }]
 test = [
     { name = "ipytest", specifier = ">=0.14.2" },
     { name = "pytest", specifier = ">=8.4.1" },

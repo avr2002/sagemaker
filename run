@@ -79,7 +79,10 @@ function run-docker {
 
 
 function docker-build-image-and-push-to-ecr {
-    set -e
+    set -ex
+
+    local repository_name=$1
+    local dockerfile_path=$2
 
     # Check if docker is running
     if ! docker info > /dev/null 2>&1; then
@@ -89,21 +92,26 @@ function docker-build-image-and-push-to-ecr {
 
     # Get the AWS account ID
     # AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-    ECR_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$REPOSITORY_NAME:latest"
+    ECR_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$repository_name:latest"
 
     # Build the Docker image
-    docker build --tag $REPOSITORY_NAME .
+    if [ -d "$THIS_DIR/$dockerfile_path" ] || [ -f "$THIS_DIR/$dockerfile_path" ]; then
+        docker build --tag $repository_name $THIS_DIR/$dockerfile_path
+    else
+        echo "Error: $dockerfile_path is not a directory or a file."
+        return 1
+    fi
 
     # Authenticate Docker to the ECR
     aws ecr get-login-password --region $AWS_REGION \
         | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
     # Ensure that the repository exists
-    aws ecr describe-repositories --repository-names "${REPOSITORY_NAME}" --region ${AWS_REGION} > /dev/null 2>&1 || \
-    aws ecr create-repository --repository-name "${REPOSITORY_NAME}" --region ${AWS_REGION} > /dev/null
+    aws ecr describe-repositories --repository-names "$repository_name" --region ${AWS_REGION} > /dev/null 2>&1 || \
+    aws ecr create-repository --repository-name "${repository_name}" --region ${AWS_REGION} > /dev/null
 
     # Tag and push the Docker image to the ECR
-    docker tag $REPOSITORY_NAME:latest $ECR_URI
+    docker tag $repository_name:latest $ECR_URI
     docker push $ECR_URI
 }
 

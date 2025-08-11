@@ -7,13 +7,12 @@ https://github.com/aws/amazon-sagemaker-examples/tree/main
 # A processing step requires a processor, a Python script that defines
 # the processing code, outputs for processing, and job arguments.
 import os
-from pathlib import Path
 
 import sagemaker
 from dotenv import load_dotenv
-from sagemaker.estimator import Estimator
 from sagemaker.inputs import TrainingInput
 from sagemaker.processing import FrameworkProcessor, ProcessingInput, ProcessingOutput
+from sagemaker.tensorflow.estimator import TensorFlow
 from sagemaker.workflow.parameters import ParameterString
 from sagemaker.workflow.pipeline import Pipeline
 from sagemaker.workflow.pipeline_context import LocalPipelineSession, PipelineSession
@@ -22,8 +21,7 @@ from sagemaker.workflow.pipeline_context import LocalPipelineSession, PipelineSe
 from sagemaker.workflow.pipeline_definition_config import PipelineDefinitionConfig
 from sagemaker.workflow.steps import CacheConfig, ProcessingStep, TrainingStep
 
-from penguins.consts import BUCKET, S3_LOCATION, SAGEMAKER_EXECUTION_ROLE, SAGEMAKER_PROCESSING_DIR
-from penguins.utils import build_and_push_docker_image
+from penguins.consts import BUCKET, S3_LOCATION, SAGEMAKER_EXECUTION_ROLE, SAGEMAKER_PROCESSING_DIR, SRC_DIR
 
 # Load environment variables from .env file
 load_dotenv()
@@ -34,9 +32,6 @@ env_vars = {
     "SAGEMAKER_EXECUTION_ROLE": os.getenv("SAGEMAKER_EXECUTION_ROLE", ""),
     "LOCAL_MODE": os.getenv("LOCAL_MODE", ""),
 }
-
-
-THIS_DIR = Path(__file__).parent
 
 # Create a local Sagemaker session
 sagemaker_session = (
@@ -61,7 +56,7 @@ pipeline_definition_config = PipelineDefinitionConfig(use_custom_job_prefix=True
 dataset_location = ParameterString(name="dataset-location", default_value=f"{S3_LOCATION}/data/")
 
 # Setup Cache for the pipeline step
-cache_config = CacheConfig(enable_caching=True, expire_after="T3H")  # 3 hours
+cache_config = CacheConfig(enable_caching=True, expire_after="15d")
 
 
 # ref: https://github.com/aws/amazon-sagemaker-examples/blob/main/sagemaker_processing/scikit_learn_data_processing_and_model_evaluation/scikit_learn_data_processing_and_model_evaluation.ipynb
@@ -80,6 +75,15 @@ framework_processor = FrameworkProcessor(
     env=env_vars,
     # py_version="py3",
 )
+
+# sklearn_processor = SKLearnProcessor(
+#     base_job_name="data-preprocessing",
+#     framework_version="1.2-1",
+#     role=SAGEMAKER_EXECUTION_ROLE,
+#     instance_type="local",
+#     instance_count=1,
+#     sagemaker_session=sagemaker_session,
+# )
 
 preprocessing_step = ProcessingStep(
     name="data-preprocessing",
@@ -105,24 +109,49 @@ preprocessing_step = ProcessingStep(
     cache_config=cache_config,
 )
 
-# Create a custom container with keras and jax
-# Automatically build and push the Docker image
-repository_name = "custom-keras-training-container"
-image_uri = build_and_push_docker_image(
-    repository_name=repository_name,
-    dockerfile_fpath=THIS_DIR / "containers/training",
-)
+# Create a TensorFlow estimator for the training step
 
-custom_estimator = Estimator(
-    base_job_name="custom-training-job",
-    image_uri=image_uri,
+# Guide:
+# https://sagemaker.readthedocs.io/en/stable/
+# https://sagemaker.readthedocs.io/en/stable/frameworks/tensorflow/using_tf.html
+# https://sagemaker-examples.readthedocs.io/en/latest/sagemaker-script-mode/sagemaker-script-mode.html
+# https://docs.aws.amazon.com/sagemaker/latest/dg/tf.html
+# https://github.com/aws/sagemaker-tensorflow-training-toolkit
+
+# Custom Docker Images:
+# https://docs.aws.amazon.com/sagemaker/latest/dg/adapt-training-container.html
+# https://docs.aws.amazon.com/sagemaker/latest/dg/amazon-sagemaker-toolkits.html
+# https://docs.aws.amazon.com/deep-learning-containers/latest/devguide/deep-learning-containers-custom-images.html
+
+# Tensorflow Pre-built Containers: https://docs.aws.amazon.com/deep-learning-containers/latest/devguide/appendix-dlc-release-notes-tensorflow.html
+# https://docs.aws.amazon.com/sagemaker/latest/dg/notebooks-available-images.html
+# https://github.com/aws/deep-learning-containers/blob/master/available_images.md
+# image_uri = sagemaker.image_uris.retrieve(
+#     framework="tensorflow",
+#     region=sagemaker_session.boto_region_name,
+#     version="2.12.0",
+#     image_scope="training",
+#     instance_type="local",
+#     py_version="py310",
+#     sagemaker_session=sagemaker_session,
+# )
+# print(f"\n\n{image_uri=}\n\n")
+
+# To test your training pipeline locally, we need to build a custom arm compatible Docker image for M-series Mac.
+# docker build -t sagemaker-tf-training-toolkit-arm64:latest containers/Dockerfile
+image_uri = "sagemaker-tf-training-toolkit-arm64:latest" if env_vars["LOCAL_MODE"] == "true" else None
+
+tf_estimator = TensorFlow(
+    base_job_name="training",
     entry_point="train.py",
-    # container_entry_point=["python", "/opt/ml/code/train.py"],
     source_dir="src/penguins",
-    dependencies=["src/penguins"],
+    dependencies=["src/penguins"],  # "requirements.txt"
     # SageMaker will pass these hyperparameters as arguments
     # to the entry point of the training script.
-    hyperparameters={"epochs": 50, "batch_size": 32},
+    hyperparameters={
+        "epochs": 50,
+        "batch_size": 32,
+    },
     # SageMaker will create these environment variables on the
     # Training Job instance.
     environment=env_vars,
@@ -135,6 +164,9 @@ custom_estimator = Estimator(
         {"Name": "val_loss", "Regex": "val_loss: ([0-9\\.]+)"},
         {"Name": "val_accuracy", "Regex": "val_accuracy: ([0-9\\.]+)"},
     ],
+    image_uri=image_uri,
+    framework_version="2.12.0",
+    py_version="py310",
     instance_type=instance_type,
     instance_count=1,
     disable_profiler=True,
@@ -145,7 +177,7 @@ custom_estimator = Estimator(
 
 training_step = TrainingStep(
     name="train-model",
-    step_args=custom_estimator.fit(
+    step_args=tf_estimator.fit(
         inputs={
             "train": TrainingInput(
                 s3_data=preprocessing_step.properties.ProcessingOutputConfig.Outputs["train"].S3Output.S3Uri,

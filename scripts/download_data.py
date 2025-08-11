@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Script to download Palmer Penguins dataset from GitHub.
 

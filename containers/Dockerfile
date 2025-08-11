@@ -14,6 +14,9 @@ RUN pip install --no-cache-dir \
     pandas \
     scikit-learn \
     comet-ml \
-    sagemaker-training
+    sRUN pip install --user --upgrade pip
+agemaker-training
 
+# Force Python to run in unbuffered mode - ensures stdout/stderr are not buffered
+# This makes logs appear immediately in Docker, which is useful for debugging and monitoring
 ENV PYTHONUNBUFFERED=TRUE
