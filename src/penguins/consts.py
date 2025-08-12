@@ -25,7 +25,8 @@ SAGEMAKER_MODEL_DIR: Path = SAGEMAKER_BASE_DIR / "model"
 # Define the environment variables
 BUCKET: str = os.environ["S3_BUCKET_NAME"]
 S3_LOCATION: str = "s3://{bucket}/penguins".format(bucket=BUCKET)
+LOCAL_MODE: str = os.environ["LOCAL_MODE"]
+
 SAGEMAKER_EXECUTION_ROLE: str = os.environ["SAGEMAKER_EXECUTION_ROLE"]
-LOCAL_MODE: bool = os.getenv("LOCAL_MODE", "true").lower() == "true"  # Convert to boolean, Defaults to true
 COMET_API_KEY: Optional[str] = os.environ.get("COMET_API_KEY", None)
 COMET_PROJECT_NAME: Optional[str] = os.environ.get("COMET_PROJECT_NAME", None)
