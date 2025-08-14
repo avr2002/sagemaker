@@ -36,7 +36,7 @@ def build_and_push_docker_image(
 
     if os.environ["LOCAL_MODE"] == "true":
         # For local mode, just build the image locally
-        _build_docker_image(repository_name, dockerfile_fpath, tag=tag)
+        build_docker_image(repository_name, dockerfile_fpath, tag=tag)
         return f"{repository_name}:{tag}"
 
     # For SageMaker mode, build and push to ECR
@@ -55,7 +55,7 @@ def build_and_push_docker_image(
 
     try:
         # Build the Docker image
-        _build_docker_image(repository_name, dockerfile_fpath, tag=tag)
+        build_docker_image(repository_name, dockerfile_fpath, tag=tag)
 
         # Login to ECR
         # https://boto3.amazonaws.com/v1/documentation/api/1.29.2/reference/services/ecr/client/get_authorization_token.html
@@ -72,22 +72,34 @@ def build_and_push_docker_image(
         raise RuntimeError(f"Failed to build and push Docker image: {e}")
 
 
-def _build_docker_image(repository_name: str, dockerfile_fpath: Path, tag: str = "latest") -> None:
-    """Build Docker image locally."""
+def build_docker_image(repository_name: str, dockerfile_fpath: Path, tag: str = "latest") -> str:
+    """Build Docker image locally.
+
+    :param repository_name: Name of the Docker repository
+    :param dockerfile_fpath: Path to the Dockerfile
+    :param tag: Tag for the Docker image
+
+    :return: local image URI, "<repository_name>:<tag>"
+    """
+    # Check if dockerfile_fpath is path to a dockerfile
+    if not dockerfile_fpath.is_file():
+        raise ValueError(f"Invalid Dockerfile path: {dockerfile_fpath=}")
+
     if os.environ["LOCAL_MODE"] == "true":
-        command = f"docker build -t {repository_name}:{tag} {str(dockerfile_fpath)}"
+        command = f"docker build --tag {repository_name}:{tag} --file {str(dockerfile_fpath)} ."
     else:
-        command = f"docker build --platform linux/amd64 -t {repository_name}:{tag} {str(dockerfile_fpath)}"
+        # For SageMaker environment build the image for amd64 architecture
+        command = f"docker build --platform linux/amd64 --tag {repository_name}:{tag} --file {str(dockerfile_fpath)} ."
     try:
         subprocess.run(
             command.split(),
             check=True,
+            cwd=dockerfile_fpath.parent,  # Set working directory to dockerfile directory
             # capture_output=True,
             # text=True,
-            # cwd=os.getcwd(),
         )
         print(f"Successfully built Docker image {repository_name}:{tag}")
-        return
+        return f"{repository_name}:{tag}"
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"Failed to build Docker image: {e}")
 

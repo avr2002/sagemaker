@@ -13,6 +13,7 @@ dependencies = [
     "scikit-learn>=1.6.1",
     "python-dotenv>=1.1.1",
     "comet-ml>=3.50.0",
+    "tensorflow~=2.12.0",
 ]
 
 [build-system]

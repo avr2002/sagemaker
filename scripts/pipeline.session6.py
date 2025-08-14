@@ -12,14 +12,14 @@ from pathlib import Path
 import sagemaker
 from sagemaker.estimator import Estimator
 from sagemaker.inputs import TrainingInput
+from sagemaker.parameter import IntegerParameter
 from sagemaker.processing import FrameworkProcessor, ProcessingInput, ProcessingOutput
+from sagemaker.tuner import HyperparameterTuner
 from sagemaker.workflow.parameters import ParameterString
 from sagemaker.workflow.pipeline import Pipeline
 from sagemaker.workflow.pipeline_context import LocalPipelineSession, PipelineSession
-
-# from sagemaker.sklearn.processing import SKLearnProcessor
 from sagemaker.workflow.pipeline_definition_config import PipelineDefinitionConfig
-from sagemaker.workflow.steps import CacheConfig, ProcessingStep, TrainingStep
+from sagemaker.workflow.steps import CacheConfig, ProcessingStep, TuningStep
 
 from penguins.consts import BUCKET, LOCAL_MODE, S3_LOCATION, SAGEMAKER_EXECUTION_ROLE, SAGEMAKER_PROCESSING_DIR
 from penguins.utils import build_and_push_docker_image
@@ -83,8 +83,8 @@ framework_processor = FrameworkProcessor(
 preprocessing_step = ProcessingStep(
     name="data-preprocessing",
     step_args=framework_processor.run(
-        code="preprocessor.py",
-        source_dir="src/penguins",
+        code="src/penguins/preprocessor.py",
+        # source_dir="src/penguins",     # Check the doc-string to know more about this parameter
         # While installing the local package (via pip install .) in requirements.txt, we need to pass the pyproject.toml and README.md files
         # Right now, we are not installing the local package because of dependency conflicts
         # dependencies=["src/penguins", "requirements.txt", "pyproject.toml", "README.md"],
@@ -111,20 +111,24 @@ preprocessing_step = ProcessingStep(
     cache_config=cache_config,
 )
 
-# Create a custom container with keras and jax
 # Automatically build and push the Docker image
-repository_name = "custom-keras-training-container"
+# image_uri = build_and_push_docker_image(
+#     # Create a custom container with keras with jax as the backend
+#     repository_name="custom-keras-jax-training-container",
+#     dockerfile_fpath=THIS_DIR / "containers/training/Dockerfile.keras.jax",
+# )
 image_uri = build_and_push_docker_image(
-    repository_name=repository_name,
-    dockerfile_fpath=THIS_DIR / "containers/training",
+    # Create a custom container with tensorflow keras -- We will serve this model using TF Serving
+    repository_name="custom-keras-tf-serving-container",
+    dockerfile_fpath=THIS_DIR / "containers/training/Dockerfile.tf.keras",
 )
 
 custom_estimator = Estimator(
     base_job_name="custom-training-job",
     image_uri=image_uri,
-    entry_point="train.py",
+    entry_point="src/penguins/train.py",
     # container_entry_point=["python", "/opt/ml/code/train.py"],
-    source_dir="src/penguins",
+    # source_dir="src/penguins",  # Check the doc-string to know more about this parameter
     dependencies=["src/penguins"],
     # SageMaker will pass these hyperparameters as arguments
     # to the entry point of the training script.
@@ -153,16 +157,46 @@ custom_estimator = Estimator(
     sagemaker_session=sagemaker_session,
 )
 
-# For Sagemaker Training, the inputs to the pipeline can be access with the environment variables prefixed with "SM_CHANNEL_"
-# The env var, "SM_CHANNELS", contains the list of all the inputs
-# https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_Channel.html
-# https://pypi.org/project/sagemaker-containers/#important-environment-variables
+# https://sagemaker.readthedocs.io/en/stable/api/training/tuner.html#
+# https://github.com/aws-samples/amazon-sagemaker-hyperparameter-tuning-portfolio-optimization/blob/master/hyperparameter-tuning-portfolio-optimization/Using_Amazon_Sagemaker_To_Optimize_Portfolio_Value.ipynb
+# NOTE: Step type Tuning is not supported in local mode.
+tuner = HyperparameterTuner(
+    base_tuning_job_name="hpo-job",
+    estimator=custom_estimator,
+    objective_metric_name="val_accuracy",
+    objective_type="Maximize",  # This value can be either 'Minimize' or 'Maximize'
+    hyperparameter_ranges={
+        "epochs": IntegerParameter(10, 50),
+        # other types of parameters can be -
+        # CategoricalParameter - A class for representing hyperparameters that have a discrete list of possible values
+        # ContinuousParameter - A class for representing hyperparameters that have a continuous range of possible values.
+    },
+    # Metric Definitions: https://docs.aws.amazon.com/sagemaker/latest/dg/automatic-model-tuning-define-metrics-variables.html
+    metric_definitions=[
+        {"Name": "val_accuracy", "Regex": "val_accuracy: ([0-9\\.]+)"},
+    ],
+    # hyperparameter tuning strategies available in Amazon SageMaker AI
+    # https://docs.aws.amazon.com/sagemaker/latest/dg/automatic-model-tuning-how-it-works.html
+    strategy="Bayesian",  # Options: 'Bayesian', 'Random', 'Hyperband', 'Grid' (default: 'Bayesian')
+    max_jobs=3,  # Max number of training jobs to launch
+    max_parallel_jobs=3,  # Max number of training jobs to run in parallel
+)
 
-# NOTE: Sagemaker does not automatically converts dashes to underscores in channel names
-# So, if a channel name is "preprocessing-pipeline", then the corresponding env var for it will be "SM_CHANNEL_PREPROCESSING-PIPELINE"
-training_step = TrainingStep(
-    name="train-model",
-    step_args=custom_estimator.fit(
+# While configuring the hyperparameter ranges, make sure training script accepts the hyperparameters
+# as arguments --epochs, --batch_size, --learning_rate
+# hyperparameter_ranges = {
+#     "epochs": IntegerParameter(10, 50),
+#     "batch_size": IntegerParameter(16, 64),
+#     "learning_rate": ContinuousParameter(1e-5, 1e-2),
+# }
+
+# In Sagemaker:
+# "SM_HPS" environment variable contains a JSON encoded dictionary with the user provided hyperparameters
+# We can access individual hyperparameters using env var: "SM_HP_{hyperparameter_name}". E.g: SM_HP_LEARNING-RATE=0.0001, SM_HP_BATCH-SIZE=10000
+
+tuning_step = TuningStep(
+    name="tune-model",
+    step_args=tuner.fit(
         inputs={
             "train": TrainingInput(
                 s3_data=preprocessing_step.properties.ProcessingOutputConfig.Outputs["train"].S3Output.S3Uri,
@@ -188,8 +222,16 @@ training_step = TrainingStep(
     cache_config=cache_config,
 )
 
-# # Access model artifacts for model evaluation step
-# model_assets = training_step.properties.ModelArtifacts.S3ModelArtifacts
+# Access Model artifacts of tuning step for model evaluation step
+# https://sagemaker.readthedocs.io/en/stable/amazon_sagemaker_model_building_pipeline.html#tuningstep
+
+# What's the difference b/w these two?
+# Get the best model trained, top_k=0
+# model_assets = tuning_step.get_top_model_s3_uri(top_k=0, s3_bucket=BUCKET)
+
+# https://sagemaker.readthedocs.io/en/stable/api/training/tuner.html#sagemaker.tuner.HyperparameterTuner.best_estimator
+# best_estimator = tuner.best_estimator(best_training_job=tuner.best_training_job())
+
 
 # Create the pipeline
 pipeline = Pipeline(
@@ -197,7 +239,7 @@ pipeline = Pipeline(
     parameters=[dataset_location],
     steps=[
         preprocessing_step,
-        training_step,
+        tuning_step,
     ],
     sagemaker_session=sagemaker_session,
     pipeline_definition_config=pipeline_definition_config,
@@ -208,115 +250,3 @@ if __name__ == "__main__":
     # role = sagemaker.get_execution_role()
     pipeline.upsert(role_arn=SAGEMAKER_EXECUTION_ROLE)
     pipeline.start()
-
-
-# Using "code_location" argument in the steps, where Sagemaker uploads the code artifacts
-# But in pre-processing job has a sagemaker managed shellscript called "runproc.sh" which is not uploaded in
-# the specified code location.
-
-# """
-# s3://ml-school-bucket-6721/
-# ├── penguins/
-# │   ├── data/
-# │   ├── preprocessing/
-# │   │   ├── e2e-ml-pipeline/
-# │   │   │   └── code/
-# │   │   │       └── 4472b7991005fc3aaeacc2e77f357aea29c1ee50a9624ff03f8a6884f4eb4015/
-# │   │   │           └── sourcedir.tar.gz
-# │   ├── training/
-# │   │   ├── custom-training-job-5w5r8jajcdeo-nX2fnIHvDU/
-# │   │   │   └── output/
-# │   │   │       └── model.tar.gz
-# │   │   └── e2e-ml-pipeline/
-# │   │       └── code/
-# │   │           └── e5ad0140453be771469b5c4acc7df805d47dc3e82435e16aac4d4e153e67442c/
-# │   │               └── sourcedir.tar.gz
-# ├── e2e-ml-pipeline/
-# │   └── code/
-# │       └── f036ce328456a216b40166796ad96c92cd30a9c2ef4bda333085138e7d9b80c0/
-# │           └── runproc.sh
-# """
-
-# """
-# runproc.sh is a script that is automatically generated by Amazon SageMaker to manage the execution of your processing job.
-# It is responsible for setting up the processing environment, running your custom processing code, and handling the upload of output data to Amazon S3.
-
-# The runproc.sh script is stored in a separate location (s3://<bucket>/e2e-ml-pipeline/code/<hash>/runproc.sh)
-# because it is a system-generated file that is not part of your custom processing code.
-# The code_location parameter you specified is intended for your own custom processing scripts and dependencies, not for system-generated files.
-
-# There is no direct way to store the runproc.sh file in your specified code_location.
-# The location of this file is determined by the SageMaker Processing service and is not configurable.
-# However, you can still access the contents of the runproc.sh file if needed, as it is stored in the same S3
-# location as your custom processing code.
-
-# To ensure that all artifacts generated by a step of your pipeline are in one place, you can use the
-# ProcessingOutput parameter to specify the S3 location where you want your processing job outputs to be stored.
-# This will ensure that all output data from your processing job, including any intermediate files or artifacts,
-# are uploaded to the same S3 location.
-# """
-
-
-"""
-# Questions I asked AWS Support:
-
-Q1. What exactly is runproc.sh and what role it plays in the processing job?
-
-    - In Amazon SageMaker Processing jobs, runproc.sh file is an internal shell script that SageMaker automatically generates and uses as an entry point for your processing job. 
-    - When you use a Docker image for a SageMaker Processing job, runproc.sh is the script that SageMaker executes within your container to initiate your processing logic.
-    - It performs several critical functions including setting up the runtime environment, managing input and output paths, handling logging configuration, and orchestrating the execution of your actual processing script.
-    - From the below pipeline definition, you can observe that the runproc.sh file serves as a entry point.
-
-    ```
-        "AppSpecification": {
-          "ImageUri": "683313688378.dkr.ecr.us-east-1.amazonaws.com/sagemaker-scikit-learn:1.2-1-cpu-py3",
-          "ContainerEntrypoint": [
-            "/bin/bash",
-            "/opt/ml/processing/input/entrypoint/runproc.sh"
-          ]
-        },
-
-    ...
-
-          {
-            "InputName": "entrypoint",
-            "AppManaged": false,
-            "S3Input": {
-              "S3Uri": "s3://ml-school-bucket-6721/e2e-ml-pipeline/code/f036ce328456a216b40166796ad96c92cd30a9c2ef4bda333085138e7d9b80c0/runproc.sh",
-              "LocalPath": "/opt/ml/processing/input/entrypoint",
-              "S3DataType": "S3Prefix",
-              "S3InputMode": "File",
-              "S3DataDistributionType": "FullyReplicated",
-              "S3CompressionType": "None"
-            }
-          }
-    ```
-
-Q2. Why is it not stored under the code_location you have provided?
-
-    - The runproc.sh file is not stored in your specified code_location because it is considered part of SageMaker's internal processing infrastructure. 
-    - SageMaker maintains a separation between user-provided code artifacts (which respect your code_location parameter) and system-generated files that are required for the proper functioning of the processing job and to avoid conflicts and to manage those files independently (e.g., lifecycle, cleanup).
-
-Q3. Is there a way where runproc.sh can be stored in your specified code_location?
-
-    -  Unfortunately, there is currently no direct way to force runproc.sh to be stored in your specified code_location. This is by design, as SageMaker needs to maintain control over system-generated files to ensure proper job execution.
-    - According to the document[1], this is how the path is generated and managed by SageMaker source code.
-
-    ```
-            s3_uri = s3.s3_path_join(
-                "s3://",
-                self.sagemaker_session.default_bucket(),
-                self.sagemaker_session.default_bucket_prefix,
-                _pipeline_config.pipeline_name,
-                "code",
-                runproc_file_hash,
-                "runproc.sh",
-            )
-    ```
-
-References:
-=========
-[1] https://github.com/aws/sagemaker-python-sdk/blob/9bfe85abe338375ea870b8bda6635d04e8d7fc4b/src/sagemaker/processing.py#L2032C1-L2040C14 
-[2] https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_CreateProcessingJob.html  
-[3] https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_AppSpecification.html#sagemaker-Type-AppSpecification-ContainerEntrypoint
-"""

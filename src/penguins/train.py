@@ -18,6 +18,32 @@ from keras.optimizers import SGD
 from packaging import version
 from sklearn.metrics import accuracy_score
 
+# ref: https://www.tensorflow.org/tfx/tutorials/serving/rest_simple#save_your_model
+# ref: https://keras.io/examples/keras_recipes/tf_serving/#save-the-model
+
+# https://neptune.ai/blog/how-to-serve-machine-learning-models-with-tensorflow-serving-and-docker
+
+# """
+# Serving a Keras model with TensorFlow Serving
+
+# To load our trained model into TensorFlow Serving we first need to save it in SavedModel format.
+# This will create a protobuf file in a well-defined directory hierarchy, and will include a version
+# number. TensorFlow Serving allows us to select which version of a model, or "servable" we want to
+# use when we make inference requests. Each version will be exported to a different sub-directory
+# under the given path.
+
+# # https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/saved_model/README.md#the-savedmodel-format
+# A SavedModel directory has the following structure:
+# ```
+# assets/
+# assets.extra/
+# variables/
+#     variables.data-?????-of-?????
+#     variables.index
+# saved_model.pb                      --- SavedModel protocol buffer
+# ```
+# """
+
 
 def train(
     model_directory: Union[str, Path],
@@ -38,7 +64,7 @@ def train(
     :param epochs: Number of training epochs.
     :param batch_size: Training batch size.
     """
-    print(f"Keras version: {keras.__version__}")
+    print(f"Keras version: {keras.__version__=}")
 
     X_train = pd.read_csv(Path(train_path) / "train.csv")
     y_train = X_train[X_train.columns[-1]]
@@ -92,6 +118,21 @@ def train(
     # model directory so they get bundled together.
     with tarfile.open(Path(preprocessing_pipeline_path) / "model.tar.gz", mode="r:gz") as tar:
         tar.extractall(model_directory)
+
+    # This is how the tree structure looks like, when model is saved with keras version<3 format
+    # and served using TF Serving
+    # model
+    # ├── 001
+    # │   ├── assets
+    # │   ├── variables
+    # │   │   ├── variables.data-00000-of-00001
+    # │   │   └── variables.index
+    # │   ├── fingerprint.pb
+    # │   ├── keras_metadata.pb
+    # │   └── saved_model.pb
+    # ├── features_transformer.joblib
+    # └── target_transformer.joblib
+    # ```
 
     if experiment:
         experiment.log_parameters(
@@ -151,11 +192,18 @@ if __name__ == "__main__":
         # to the Training Step.
         train_path=os.environ["SM_CHANNEL_TRAIN"],
         validation_path=os.environ["SM_CHANNEL_VALIDATION"],
+        # ------------------
         # Sagemaker does not automatically converts dashes to underscores in channel names
         # So, if a channel name is "preprocessing-pipeline", then the corresponding env var for it will be "SM_CHANNEL_PREPROCESSING-PIPELINE"
         # https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_Channel.html
         # https://pypi.org/project/sagemaker-containers/#important-environment-variables
-        preprocessing_pipeline_path=os.environ["SM_CHANNEL_PREPROCESSING-PIPELINE"],
+        preprocessing_pipeline_path=os.environ["SM_CHANNEL_PREPROCESSING_PIPELINE"],
+        # NOTE: I could not use "preprocessing-pipeline" as the input channel name because when using Sagemaker built-in
+        # Tensorflow Estimator, the training script could not recognise the "SM_CHANNEL_PREPROCESSING-PIPELINE" env. var.
+        # even though the env var existed after looking the CloudWatch logs. But this works using a custom estimator.
+        # So for "Tensorflow" Estimator, we settled on using "preprocessing_pipeline" as the input channel name.
+        # Check file: scripts/pipeline.session4.py
+        # -------------------
         experiment=experiment,
         epochs=args.epochs,
         batch_size=args.batch_size,

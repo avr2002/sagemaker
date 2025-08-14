@@ -7,6 +7,7 @@ https://github.com/aws/amazon-sagemaker-examples/tree/main
 # A processing step requires a processor, a Python script that defines
 # the processing code, outputs for processing, and job arguments.
 import os
+from pathlib import Path
 
 import sagemaker
 from dotenv import load_dotenv
@@ -22,6 +23,9 @@ from sagemaker.workflow.pipeline_definition_config import PipelineDefinitionConf
 from sagemaker.workflow.steps import CacheConfig, ProcessingStep, TrainingStep
 
 from penguins.consts import BUCKET, S3_LOCATION, SAGEMAKER_EXECUTION_ROLE, SAGEMAKER_PROCESSING_DIR, SRC_DIR
+from penguins.utils import build_docker_image
+
+THIS_DIR = Path(__file__).parent
 
 # Load environment variables from .env file
 load_dotenv()
@@ -56,7 +60,7 @@ pipeline_definition_config = PipelineDefinitionConfig(use_custom_job_prefix=True
 dataset_location = ParameterString(name="dataset-location", default_value=f"{S3_LOCATION}/data/")
 
 # Setup Cache for the pipeline step
-cache_config = CacheConfig(enable_caching=True, expire_after="15d")
+cache_config = CacheConfig(enable_caching=False, expire_after="15d")
 
 # Sagemaker Processing Job
 # https://sagemaker.readthedocs.io/en/stable/amazon_sagemaker_processing.html#amazon-sagemaker-processing
@@ -90,8 +94,8 @@ framework_processor = FrameworkProcessor(
 preprocessing_step = ProcessingStep(
     name="data-preprocessing",
     step_args=framework_processor.run(
-        code="preprocessor.py",
-        source_dir="src/penguins",
+        code="src/penguins/preprocessor.py",
+        # source_dir="src/penguins",
         # While installing the local package (via pip install .) in requirements.txt, we need to pass the pyproject.toml and README.md files
         # Right now, we are not installing the local package because of dependency conflicts
         # dependencies=["src/penguins", "requirements.txt", "pyproject.toml", "README.md"],
@@ -105,7 +109,14 @@ preprocessing_step = ProcessingStep(
                 source=f"{SAGEMAKER_PROCESSING_DIR}/{output_name}",
                 destination=f"{S3_LOCATION}/preprocessing/{output_name}",
             )
-            for output_name in ["train", "validation", "test", "model", "train-baseline", "test-baseline"]
+            for output_name in [
+                "train",
+                "validation",
+                "test",
+                "preprocessing-pipeline",
+                "train-baseline",
+                "test-baseline",
+            ]
         ],
     ),
     cache_config=cache_config,
@@ -141,13 +152,24 @@ preprocessing_step = ProcessingStep(
 
 # To test your training pipeline locally, we need to build a custom arm compatible Docker image for M-series Mac.
 # docker build -t sagemaker-tf-training-toolkit-arm64:latest containers/Dockerfile
-image_uri = "sagemaker-tf-training-toolkit-arm64:latest" if env_vars["LOCAL_MODE"] == "true" else None
+# image_uri = "sagemaker-tf-training-toolkit-arm64:latest" if env_vars["LOCAL_MODE"] == "true" else None
 
+if os.environ["LOCAL_MODE"] == "true":
+    # image_uri = "sagemaker-tf-training-toolkit-arm64:latest"
+    image_uri = build_docker_image(
+        repository_name="sagemaker-tf-training-toolkit-arm64",
+        dockerfile_fpath=THIS_DIR / "containers/Dockerfile",
+        tag="latest",
+    )
+else:
+    image_uri = None
+
+# https://sagemaker.readthedocs.io/en/stable/frameworks/tensorflow/using_tf.html#id5
 tf_estimator = TensorFlow(
     base_job_name="training",
-    entry_point="train.py",
-    source_dir="src/penguins",
-    dependencies=["src/penguins"],  # "requirements.txt"
+    entry_point="src/penguins/train.py",
+    # source_dir="src/penguins",
+    dependencies=["src/penguins", "requirements.txt"],
     # SageMaker will pass these hyperparameters as arguments
     # to the entry point of the training script.
     hyperparameters={
@@ -190,8 +212,14 @@ training_step = TrainingStep(
                 s3_data=preprocessing_step.properties.ProcessingOutputConfig.Outputs["validation"].S3Output.S3Uri,
                 content_type="text/csv",
             ),
-            "pipeline": TrainingInput(
-                s3_data=preprocessing_step.properties.ProcessingOutputConfig.Outputs["model"].S3Output.S3Uri,
+            # NOTE: I could not use "preprocessing-pipeline" as the input channel name because when using Sagemaker built-in
+            # Tensorflow Estimator, the training script could not recognise the "SM_CHANNEL_PREPROCESSING-PIPELINE" env. var.
+            # even though the env var existed after looking the CloudWatch logs. But this works using a custom estimator.
+            # So for "Tensorflow" Estimator, we settled on using "preprocessing_pipeline" as the input channel name.
+            "preprocessing_pipeline": TrainingInput(
+                s3_data=preprocessing_step.properties.ProcessingOutputConfig.Outputs[
+                    "preprocessing-pipeline"
+                ].S3Output.S3Uri,
                 content_type="application/tar+gzip",
             ),
         },

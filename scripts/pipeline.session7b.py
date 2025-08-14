@@ -1,5 +1,5 @@
 """
-Sagemaker Pipeline.
+Sagemaker Pipeline  -- Using Model Training Step to do model Evaluation.
 
 ref:
 https://sagemaker.readthedocs.io/en/stable/amazon_sagemaker_model_building_pipeline.html#

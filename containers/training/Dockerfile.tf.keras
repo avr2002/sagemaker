@@ -1,0 +1,36 @@
+# Sagemaker Training Custom Container
+# a custom container with tensorflow keras -- We will serve this model using TF Serving
+# https://github.com/aws/sagemaker-training-toolkit/tree/master
+
+FROM python:3.10-slim-bookworm
+
+# Install system dependencies including build tools for compiling packages
+RUN apt-get update && \
+    apt-get install -y build-essential gcc && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install deps
+# Install sagemaker-training toolkit that contains the common functionality necessary to create a container compatible with SageMaker AI and the Python SDK.
+RUN pip install --user --upgrade pip
+RUN pip install --no-cache-dir \
+    tensorflow==2.12.0 \
+    scikit-learn \
+    sagemaker-training \
+    numpy \
+    pandas \
+    comet-ml
+
+# Set the working directory
+WORKDIR /opt/ml/code/
+
+# COPY ../../src/penguins/train.py /opt/ml/code/train.py
+
+# # The training script must be located in the /opt/ml/code directory.
+# # The environment variable SAGEMAKER_PROGRAM defines which file inside the /opt/ml/code 
+# # directory to use as the training entry point. When training starts, the interpreter executes the entry point defined by SAGEMAKER_PROGRAM.
+# # Python and shell scripts are both supported.
+# ENV SAGEMAKER_PROGRAM train.py
+
+# Force Python to run in unbuffered mode - ensures stdout/stderr are not buffered
+# This makes logs appear immediately in Docker, which is useful for debugging and monitoring
+ENV PYTHONUNBUFFERED=TRUE

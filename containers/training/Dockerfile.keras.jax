@@ -1,4 +1,4 @@
-# Sagemaker Training Custom Container -- Using Keras
+# Sagemaker Training Custom Container -- Using Keras with Jax as backend
 # https://github.com/aws/sagemaker-training-toolkit/tree/master
 
 FROM python:3.10-slim-bookworm
@@ -23,7 +23,7 @@ RUN pip install --no-cache-dir \
 # Set the working directory
 WORKDIR /opt/ml/code/
 
-# COPY train.py /opt/ml/code/train.py
+# COPY ../../src/penguins/train.py /opt/ml/code/train.py
 
 # # The training script must be located in the /opt/ml/code directory.
 # # The environment variable SAGEMAKER_PROGRAM defines which file inside the /opt/ml/code 
