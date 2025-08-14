@@ -158,11 +158,11 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=32)
     args, _ = parser.parse_known_args()
 
-    # Let's create a Comet experiment to log the metrics and parameters
-    # of this training job.
+    # Let's create a Comet experiment to log the metrics and parameters of this training job.
     comet_api_key = os.environ.get("COMET_API_KEY", None)
     comet_project_name = os.environ.get("COMET_PROJECT_NAME", None)
 
+    # COMET WARNING: To get all data logged automatically, import comet_ml before the following modules: tensorboard, keras, tensorflow
     experiment = (
         Experiment(
             project_name=comet_project_name,
