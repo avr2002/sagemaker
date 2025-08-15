@@ -3,26 +3,15 @@ from typing import Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-from sklearn.compose import (
-    ColumnTransformer,
-    make_column_selector,
-)
+from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.impute import SimpleImputer
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import (
-    OneHotEncoder,
-    OrdinalEncoder,
-    StandardScaler,
-)
+from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, StandardScaler
 
 from penguins.consts import SAGEMAKER_PROCESSING_DIR
 from penguins.load_data import load_data
-from penguins.save import (
-    save_baseline_data,
-    save_processing_pipeline_model,
-    save_split_data,
-)
+from penguins.save import save_baseline_data, save_processing_pipeline_model, save_split_data
 
 
 def preprocess(base_processing_directory: Union[str, Path] = SAGEMAKER_PROCESSING_DIR) -> None:
@@ -95,7 +84,11 @@ def preprocess_pipeline() -> Tuple[ColumnTransformer, ColumnTransformer]:
     # @TODO: Later read the feature names & target name from config file
     features_transformer = ColumnTransformer(
         transformers=[
-            ("numeric", numeric_transformer, make_column_selector(dtype_exclude="object")),
+            (
+                "numeric",
+                numeric_transformer,
+                make_column_selector(dtype_exclude="object"),
+            ),
             # Select the 'island' column and apply the categorical transformer
             ("categorical", categorical_transformer, ["island"]),
             # We're dropping 'sex' column as it does not have any predictive power(see EDA).

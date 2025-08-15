@@ -51,6 +51,7 @@ extend-select = [
     "N",
 ]
 ignore = [
+    "B904",  # Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
     "E501",  # line-too-long
     "F401",  # unused-import
     "W605",  # invalid-escape-sequence

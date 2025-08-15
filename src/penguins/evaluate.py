@@ -57,7 +57,9 @@ def evaluate(
         experiment.log_metric("test_accuracy", accuracy)
         experiment.log_dataset_hash(X_test)
         experiment.log_confusion_matrix(
-            y_true=y_test.astype(int), y_predicted=predictions.astype(int), title="Test Set Confusion Matrix"
+            y_true=y_test.astype(int),
+            y_predicted=predictions.astype(int),
+            title="Test Set Confusion Matrix",
         )
 
     # Let's create an evaluation report using the model accuracy.

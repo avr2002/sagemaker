@@ -22,7 +22,7 @@ from sagemaker.workflow.pipeline_context import LocalPipelineSession, PipelineSe
 from sagemaker.workflow.pipeline_definition_config import PipelineDefinitionConfig
 from sagemaker.workflow.steps import CacheConfig, ProcessingStep, TrainingStep
 
-from penguins.consts import BUCKET, S3_LOCATION, SAGEMAKER_EXECUTION_ROLE, SAGEMAKER_PROCESSING_DIR, SRC_DIR
+from penguins.consts import BUCKET, S3_LOCATION, SAGEMAKER_EXECUTION_ROLE, SAGEMAKER_PROCESSING_DIR
 from penguins.utils import build_docker_image
 
 THIS_DIR = Path(__file__).parent
@@ -101,7 +101,10 @@ preprocessing_step = ProcessingStep(
         # dependencies=["src/penguins", "requirements.txt", "pyproject.toml", "README.md"],
         dependencies=["src/penguins", "requirements.txt"],
         inputs=[
-            ProcessingInput(source=dataset_location, destination=(SAGEMAKER_PROCESSING_DIR / "input").as_posix()),
+            ProcessingInput(
+                source=dataset_location,
+                destination=(SAGEMAKER_PROCESSING_DIR / "input").as_posix(),
+            ),
         ],
         outputs=[
             ProcessingOutput(

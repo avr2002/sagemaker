@@ -26,7 +26,7 @@ WORKDIR /opt/ml/code/
 # COPY ../../src/penguins/train.py /opt/ml/code/train.py
 
 # # The training script must be located in the /opt/ml/code directory.
-# # The environment variable SAGEMAKER_PROGRAM defines which file inside the /opt/ml/code 
+# # The environment variable SAGEMAKER_PROGRAM defines which file inside the /opt/ml/code
 # # directory to use as the training entry point. When training starts, the interpreter executes the entry point defined by SAGEMAKER_PROGRAM.
 # # Python and shell scripts are both supported.
 # ENV SAGEMAKER_PROGRAM train.py

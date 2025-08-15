@@ -13,13 +13,7 @@
 import os
 
 import aws_cdk as cdk
-from aws_cdk import (
-    CfnOutput,
-    Duration,
-    RemovalPolicy,
-    Stack,
-)
-from aws_cdk import aws_ecr as ecr
+from aws_cdk import CfnOutput, RemovalPolicy, Stack
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_s3 as s3
 from aws_cdk import aws_s3_deployment as s3_deployment
@@ -33,12 +27,13 @@ from constructs import Construct
 # VPC_NAME = "default"
 VPC_NAME = "local-virginia"
 
+
 class SagemakerMLStack(Stack):
     """Stack for SageMaker ML infrastructure."""
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
-        
+
         # 1. Create S3 Bucket for ML data and artifacts
         self.ml_bucket = s3.Bucket(
             self,
@@ -113,7 +108,7 @@ class SagemakerMLStack(Stack):
 
     def _add_sagemaker_policies(self) -> None:
         """Add comprehensive IAM policies to SageMaker execution role."""
-        
+
         # Add AWS managed SageMaker policy
         self.sagemaker_execution_role.add_managed_policy(
             iam.ManagedPolicy.from_aws_managed_policy_name("AmazonSageMakerFullAccess")
@@ -245,10 +240,10 @@ class SagemakerMLStack(Stack):
     def _create_sagemaker_domain(self) -> sagemaker.CfnDomain:
         """Create SageMaker Domain."""
         # https://github.com/aws-samples/aws-cdk-sagemaker-studio/blob/main/sagemakerStudioCDK/sagemaker_studio_stack.py
-        
+
         # Get default VPC (you might want to specify a custom VPC)
         from aws_cdk import aws_ec2 as ec2
-        
+
         # vpc = ec2.Vpc.from_lookup(self, "DefaultVPC", is_default=True)
         if VPC_NAME.lower() == "default":
             vpc = ec2.Vpc.from_lookup(self, "VpcLookup", is_default=True)
@@ -258,7 +253,7 @@ class SagemakerMLStack(Stack):
                 "VpcLookup",
                 vpc_name=VPC_NAME,
             )
-        
+
         return sagemaker.CfnDomain(
             self,
             "MLSchoolDomain",
@@ -274,7 +269,7 @@ class SagemakerMLStack(Stack):
     def _create_default_user_profile(self) -> sagemaker.CfnUserProfile:
         """Create a default user profile for the SageMaker Domain."""
         # https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_sagemaker.CfnUserProfile.html
-        
+
         return sagemaker.CfnUserProfile(
             self,
             "DefaultUserProfile",
@@ -302,7 +297,7 @@ class SagemakerMLStack(Stack):
 
     def _deploy_sample_data(self) -> None:
         """Deploy sample data to S3 if it exists."""
-        
+
         try:
             # This will only work if the data file exists
             s3_deployment.BucketDeployment(
@@ -320,7 +315,7 @@ class SagemakerMLStack(Stack):
 
     def _create_outputs(self) -> None:
         """Create CloudFormation outputs."""
-        
+
         CfnOutput(
             self,
             "S3BucketName",
@@ -328,7 +323,7 @@ class SagemakerMLStack(Stack):
             description="Name of the S3 bucket for ML data and artifacts",
             export_name=f"{self.stack_name}-S3BucketName",
         )
-        
+
         # CfnOutput(
         #     self,
         #     "ECRRepositoryName",
@@ -336,7 +331,7 @@ class SagemakerMLStack(Stack):
         #     description="Name of the ECR repository for Docker images",
         #     export_name=f"{self.stack_name}-ECRRepositoryName",
         # )
-        
+
         # CfnOutput(
         #     self,
         #     "ECRRepositoryUri",
@@ -344,7 +339,7 @@ class SagemakerMLStack(Stack):
         #     description="URI of the ECR repository",
         #     export_name=f"{self.stack_name}-ECRRepositoryUri",
         # )
-        
+
         CfnOutput(
             self,
             "SageMakerExecutionRoleArn",
@@ -352,7 +347,7 @@ class SagemakerMLStack(Stack):
             description="ARN of the SageMaker execution role",
             export_name=f"{self.stack_name}-SageMakerExecutionRoleArn",
         )
-        
+
         CfnOutput(
             self,
             "SageMakerExecutionRoleName",
@@ -360,7 +355,7 @@ class SagemakerMLStack(Stack):
             description="Name of the SageMaker execution role",
             export_name=f"{self.stack_name}-SageMakerExecutionRoleName",
         )
-        
+
         CfnOutput(
             self,
             "SageMakerDomainId",
@@ -368,7 +363,7 @@ class SagemakerMLStack(Stack):
             description="SageMaker Domain ID",
             export_name=f"{self.stack_name}-SageMakerDomainId",
         )
-        
+
         CfnOutput(
             self,
             "DefaultUserProfileName",
@@ -376,7 +371,7 @@ class SagemakerMLStack(Stack):
             description="Name of the default SageMaker user profile",
             export_name=f"{self.stack_name}-DefaultUserProfileName",
         )
-        
+
         # Console links for easy access
         CfnOutput(
             self,
@@ -384,7 +379,7 @@ class SagemakerMLStack(Stack):
             value=f"https://s3.console.aws.amazon.com/s3/buckets/{self.ml_bucket.bucket_name}",
             description="AWS Console link to the S3 bucket",
         )
-        
+
         # SageMaker Domain Console Link
         CfnOutput(
             self,
@@ -392,21 +387,21 @@ class SagemakerMLStack(Stack):
             value=f"https://{self.region}.console.aws.amazon.com/sagemaker/home?region={self.region}#/studio/{self.sagemaker_domain.ref}",
             description="AWS Console link to the SageMaker domain",
         )
-        
+
         # CfnOutput(
         #     self,
         #     "ECRConsoleLink",
         #     value=f"https://{self.region}.console.aws.amazon.com/ecr/repositories/private/{self.account}/{self.ecr_repository.repository_name}",
         #     description="AWS Console link to the ECR repository",
         # )
-        
+
         CfnOutput(
             self,
             "IAMRoleConsoleLink",
             value=f"https://console.aws.amazon.com/iam/home?region={self.region}#/roles/{self.sagemaker_execution_role.role_name}",
             description="AWS Console link to the SageMaker execution role",
         )
-        
+
 
 ###############
 # --- App --- #
@@ -423,7 +418,7 @@ SagemakerMLStack(
         account=os.environ.get("CDK_DEFAULT_ACCOUNT"),
         region=os.environ.get("CDK_DEFAULT_REGION"),
     ),
-    description="SageMaker ML infrastructure for Palmer Penguins ML School project"
+    description="SageMaker ML infrastructure for Palmer Penguins ML School project",
 )
 
 # Synthesize the app

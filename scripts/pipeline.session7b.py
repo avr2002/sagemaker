@@ -117,7 +117,9 @@ preprocessing_step = ProcessingStep(
                 output_name=output_name,
                 source=f"{SAGEMAKER_PROCESSING_DIR}/{output_name}",
                 destination=f"{S3_LOCATION}/preprocessing/{output_name}/",  # Added a trailing '/' because I got an error using "FastFile" mode in Training Step
-                s3_upload_mode="Continuous" if not LOCAL_MODE == "true" else "EndOfJob",  # "Continuous" or "EndOfJob"
+                s3_upload_mode=(
+                    "Continuous" if not LOCAL_MODE == "true" else "EndOfJob"
+                ),  # "Continuous" or "EndOfJob"
                 # ^^^NOTE: RuntimeError: UploadMode: Continuous is not currently supported in Local Mode.
             )
             for output_name in [
@@ -297,7 +299,9 @@ evaluation_step = ProcessingStep(
                 output_name="evaluation",  # The output name must match the "PropertyFile" output name
                 source=str(SAGEMAKER_PROCESSING_DIR / "evaluation"),
                 destination=f"{S3_LOCATION}/evaluation",
-                s3_upload_mode="Continuous" if not LOCAL_MODE == "true" else "EndOfJob",  # "Continuous" or "EndOfJob"
+                s3_upload_mode=(
+                    "Continuous" if not LOCAL_MODE == "true" else "EndOfJob"
+                ),  # "Continuous" or "EndOfJob"
                 # ^^^NOTE: RuntimeError: UploadMode: Continuous is not currently supported in Local Mode.
             )
         ],

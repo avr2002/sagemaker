@@ -92,7 +92,10 @@ preprocessing_step = ProcessingStep(
         # dependencies=["src/penguins", "requirements.txt", "pyproject.toml", "README.md"],
         dependencies=["src/penguins", "requirements.txt"],
         inputs=[
-            ProcessingInput(source=dataset_location, destination=(SAGEMAKER_PROCESSING_DIR / "input").as_posix()),
+            ProcessingInput(
+                source=dataset_location,
+                destination=(SAGEMAKER_PROCESSING_DIR / "input").as_posix(),
+            ),
         ],
         outputs=[
             ProcessingOutput(
@@ -264,7 +267,7 @@ if __name__ == "__main__":
 
 Q1. What exactly is runproc.sh and what role it plays in the processing job?
 
-    - In Amazon SageMaker Processing jobs, runproc.sh file is an internal shell script that SageMaker automatically generates and uses as an entry point for your processing job. 
+    - In Amazon SageMaker Processing jobs, runproc.sh file is an internal shell script that SageMaker automatically generates and uses as an entry point for your processing job.
     - When you use a Docker image for a SageMaker Processing job, runproc.sh is the script that SageMaker executes within your container to initiate your processing logic.
     - It performs several critical functions including setting up the runtime environment, managing input and output paths, handling logging configuration, and orchestrating the execution of your actual processing script.
     - From the below pipeline definition, you can observe that the runproc.sh file serves as a entry point.
@@ -296,7 +299,7 @@ Q1. What exactly is runproc.sh and what role it plays in the processing job?
 
 Q2. Why is it not stored under the code_location you have provided?
 
-    - The runproc.sh file is not stored in your specified code_location because it is considered part of SageMaker's internal processing infrastructure. 
+    - The runproc.sh file is not stored in your specified code_location because it is considered part of SageMaker's internal processing infrastructure.
     - SageMaker maintains a separation between user-provided code artifacts (which respect your code_location parameter) and system-generated files that are required for the proper functioning of the processing job and to avoid conflicts and to manage those files independently (e.g., lifecycle, cleanup).
 
 Q3. Is there a way where runproc.sh can be stored in your specified code_location?
@@ -318,7 +321,7 @@ Q3. Is there a way where runproc.sh can be stored in your specified code_locatio
 
 References:
 =========
-[1] https://github.com/aws/sagemaker-python-sdk/blob/9bfe85abe338375ea870b8bda6635d04e8d7fc4b/src/sagemaker/processing.py#L2032C1-L2040C14 
-[2] https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_CreateProcessingJob.html  
+[1] https://github.com/aws/sagemaker-python-sdk/blob/9bfe85abe338375ea870b8bda6635d04e8d7fc4b/src/sagemaker/processing.py#L2032C1-L2040C14
+[2] https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_CreateProcessingJob.html
 [3] https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_AppSpecification.html#sagemaker-Type-AppSpecification-ContainerEntrypoint
 """

@@ -90,7 +90,10 @@ preprocessing_step = ProcessingStep(
         # dependencies=["src/penguins", "requirements.txt", "pyproject.toml", "README.md"],
         dependencies=["src/penguins", "requirements.txt"],
         inputs=[
-            ProcessingInput(source=dataset_location, destination=(SAGEMAKER_PROCESSING_DIR / "input").as_posix()),
+            ProcessingInput(
+                source=dataset_location,
+                destination=(SAGEMAKER_PROCESSING_DIR / "input").as_posix(),
+            ),
         ],
         outputs=[
             ProcessingOutput(

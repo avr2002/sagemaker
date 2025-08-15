@@ -37,8 +37,14 @@ def save_processing_pipeline_model(
 
         # Zip and move the files to the base processing directory
         with tarfile.open(preprocessing_pipeline_path / "model.tar.gz", "w:gz") as tar:
-            tar.add(Path(temp_dir) / "features_transformer.joblib", arcname="features_transformer.joblib")
-            tar.add(Path(temp_dir) / "target_transformer.joblib", arcname="target_transformer.joblib")
+            tar.add(
+                Path(temp_dir) / "features_transformer.joblib",
+                arcname="features_transformer.joblib",
+            )
+            tar.add(
+                Path(temp_dir) / "target_transformer.joblib",
+                arcname="target_transformer.joblib",
+            )
 
 
 def save_split_data(
@@ -136,4 +142,8 @@ def save_baseline_data(
     include_header = dataset_type == "train"  # False for test, True for train
 
     # Save to CSV
-    df_copy.to_csv(baseline_path / f"{dataset_type}-baseline.csv", header=include_header, index=False)
+    df_copy.to_csv(
+        baseline_path / f"{dataset_type}-baseline.csv",
+        header=include_header,
+        index=False,
+    )

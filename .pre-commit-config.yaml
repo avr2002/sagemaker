@@ -5,18 +5,14 @@
 exclude: ^notebooks|data
 
 repos:
-
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v5.0.0
     hooks:
       # Fails if there are any ">>>>>" lines in files due to merge conflicts.
       - id: check-merge-conflict
       # Trims trailing whitespace. Allow a single space on the end of .md lines for hard line breaks.
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
-      # Makes sure files end in a newline and only a newline;
-      - id: end-of-file-fixer
-        exclude: ^openapi\.json$
       # Attempts to load all TOML files to verify syntax.
       - id: check-toml
       # Attempts to load all yaml files to verify syntax; unsafe: only check syntax, do not load yaml
@@ -44,6 +40,8 @@ repos:
           )
       # Sort requirements in requirements.txt files.
       - id: requirements-txt-fixer
+        exclude: \.+excalidraw$
+
       # Prevent addition of new git submodules.
       - id: forbid-new-submodules
       # Prevent committing directly to trunk (since Bitbucket wants us to pay for this feature)
@@ -52,55 +50,17 @@ repos:
       # Detects the presence of private keys
       - id: detect-private-key
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: "v1.10.0"
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: "v0.9.6"
     hooks:
-      - id: mypy
+      # Linter
+      - id: ruff
         args:
-          [
-            --no-strict-optional,
-            --ignore-missing-imports,
-            --config-file=./pyproject.toml,
-          ]
-
-  - repo: https://github.com/psf/black
-    rev: 24.4.2
-    hooks:
-      - id: black
-        args:
+          - --fix
+          - --extend-select=F401,F841
+          # F401: unused-import -- We DO want to remove unused imports on lint, not on Save
+          # F841: unused-variable -- We DO want to remove unused variables on lint, not on Save
           - --config=./pyproject.toml
-
-  - repo: https://github.com/PyCQA/pylint
-    rev: v3.2.2
-    hooks:
-      - id: pylint
-        args:
-          - --rcfile=./pyproject.toml
-
-  - repo: https://github.com/PyCQA/flake8
-    rev: 7.0.0
-    hooks:
-      - id: flake8
-        args:
-          - --toml-config=./pyproject.toml
-        additional_dependencies:
-          - radon
-          - flake8-docstrings
-          - Flake8-pyproject
-
-  - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
-    hooks:
-      - id: isort
-        args:
-          - --settings-path=./pyproject.toml
-
-  - repo: https://github.com/PyCQA/autoflake
-    rev: v2.3.1
-    hooks:
-      - id: autoflake
-        args:
-          - --in-place
-          - --remove-all-unused-imports
-          - --remove-unused-variable
-          - --ignore-init-module-imports
+      # Formatter
+      - id: ruff-format
+        args: [--config=./pyproject.toml]
