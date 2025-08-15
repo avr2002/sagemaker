@@ -18,6 +18,9 @@ from sagemaker.model_metrics import MetricsSource, ModelMetrics
 from sagemaker.processing import FrameworkProcessor, ProcessingInput, ProcessingOutput
 from sagemaker.tensorflow.model import TensorFlowModel
 from sagemaker.tensorflow.processing import TensorFlowProcessor
+from sagemaker.workflow.condition_step import ConditionStep
+from sagemaker.workflow.conditions import ConditionGreaterThanOrEqualTo
+from sagemaker.workflow.fail_step import FailStep
 from sagemaker.workflow.functions import Join, JsonGet
 from sagemaker.workflow.model_step import ModelStep
 from sagemaker.workflow.parameters import ParameterFloat, ParameterString
@@ -27,7 +30,13 @@ from sagemaker.workflow.pipeline_definition_config import PipelineDefinitionConf
 from sagemaker.workflow.properties import PropertyFile
 from sagemaker.workflow.steps import CacheConfig, ProcessingStep, TrainingStep
 
-from penguins.consts import BUCKET, LOCAL_MODE, S3_LOCATION, SAGEMAKER_EXECUTION_ROLE, SAGEMAKER_PROCESSING_DIR
+from penguins.consts import (
+    BUCKET,
+    LOCAL_MODE,
+    S3_LOCATION,
+    SAGEMAKER_EXECUTION_ROLE,
+    SAGEMAKER_PROCESSING_DIR,
+)
 from penguins.utils import build_and_push_docker_image, build_docker_image
 
 env_vars = {
@@ -117,7 +126,9 @@ preprocessing_step = ProcessingStep(
                 output_name=output_name,
                 source=f"{SAGEMAKER_PROCESSING_DIR}/{output_name}",
                 destination=f"{S3_LOCATION}/preprocessing/{output_name}/",  # Added a trailing '/' because I got an error using "FastFile" mode in Training Step
-                s3_upload_mode="Continuous" if not LOCAL_MODE == "true" else "EndOfJob",  # "Continuous" or "EndOfJob"
+                s3_upload_mode=(
+                    "Continuous" if not LOCAL_MODE == "true" else "EndOfJob"
+                ),  # "Continuous" or "EndOfJob"
                 # ^^^NOTE: RuntimeError: UploadMode: Continuous is not currently supported in Local Mode.
             )
             for output_name in [
@@ -299,7 +310,9 @@ evaluation_step = ProcessingStep(
                 output_name="evaluation",  # The output name must match the "PropertyFile" output name
                 source=str(SAGEMAKER_PROCESSING_DIR / "evaluation"),
                 destination=f"{S3_LOCATION}/evaluation",
-                s3_upload_mode="Continuous" if not LOCAL_MODE == "true" else "EndOfJob",  # "Continuous" or "EndOfJob"
+                s3_upload_mode=(
+                    "Continuous" if not LOCAL_MODE == "true" else "EndOfJob"
+                ),  # "Continuous" or "EndOfJob"
                 # ^^^NOTE: RuntimeError: UploadMode: Continuous is not currently supported in Local Mode.
             )
         ],
@@ -372,9 +385,6 @@ tf_model = TensorFlowModel(
 # Create Model Metrics Object
 model_metrics = ModelMetrics(
     model_statistics=MetricsSource(
-        # We cannot simply do string concatenation with S3Uri_dir_path + "/evaluation.json"
-        # Because the `evaluation_step.properties.ProcessingOutputConfig.Outputs["evaluation"].S3Output.S3Uri`
-        # is not a regular Python String - it's a SageMaker pipeline property that gets resolved at pipeline execution time.
         s3_uri=Join(
             on="/",
             values=[
@@ -386,6 +396,12 @@ model_metrics = ModelMetrics(
         content_type="application/json",
     )
 )
+# ^^^NOTE: We cannot simply do string concatenation with S3Uri_dir_path + "/evaluation.json"
+# Because the `evaluation_step.properties.ProcessingOutputConfig.Outputs["evaluation"].S3Output.S3Uri`
+# is not a regular Python String - it's a SageMaker pipeline property that gets resolved at pipeline execution time.
+
+# So, Pipeline functions like "Join, JsonGet" are used to assign values to properties that are not available until pipeline execution time.
+# ref: https://sagemaker.readthedocs.io/en/stable/amazon_sagemaker_model_building_pipeline.html#pipeline-functions
 
 # Register the model using model step
 register_model_step = ModelStep(
@@ -411,6 +427,58 @@ register_model_step = ModelStep(
 # local mode.
 
 
+#########################################
+### Conditional Pipeline Registration ###
+#########################################
+
+# Register the model only if the model performance is acceptable, else fail the pipeline
+# """
+# if model_accuracy >= accuracy_threshold:
+#     register_model_step
+# else:
+#     fail_step
+# """
+
+# Let's define a pipeline parameter that defines the threshold for model performance
+accuracy_threshold = ParameterFloat(
+    name="accuracy-threshold",
+    default_value=0.70,
+)
+
+# Create a FailStep that will fail the pipeline if the model performance is not acceptable
+fail_step = FailStep(
+    name="fail-step",
+    display_name="Fail Pipeline",
+    description="Fail the pipeline if model accuracy is below the threshold.",
+    error_message=Join(
+        on=" ",
+        values=[
+            "Execution failed because model's accuracy is lower than",
+            accuracy_threshold,
+        ],
+    ),
+)
+
+# Define the condition to check whether the model accuracy is above the threshold
+# ref: https://sagemaker.readthedocs.io/en/stable/workflows/pipelines/sagemaker.workflow.pipelines.html#conditions
+condition = ConditionGreaterThanOrEqualTo(
+    left=JsonGet(  # type: ignore[arg-type]
+        step_name=evaluation_step.name,
+        property_file=evaluation_report,
+        json_path="metrics.accuracy.value",  # The path to the accuracy value in the evaluation report
+    ),
+    right=accuracy_threshold,  # The threshold value for accuracy
+)
+
+# Set the Conditon Step
+condition_step = ConditionStep(
+    name="check-model-accuracy",
+    display_name="Check Model Accuracy",
+    conditions=[condition],
+    if_steps=[register_model_step],
+    else_steps=[fail_step],
+)
+
 
 ################
 ### Pipeline ###
@@ -425,12 +493,13 @@ pipeline_definition_config = PipelineDefinitionConfig(use_custom_job_prefix=True
 # Create the pipeline
 pipeline = Pipeline(
     name="e2e-ml-pipeline",
-    parameters=[dataset_location],
+    parameters=[dataset_location, accuracy_threshold],
     steps=[
         preprocessing_step,
         training_step,
         evaluation_step,
-        register_model_step,
+        # register_model_step,
+        condition_step,
     ],
     sagemaker_session=sagemaker_session,
     pipeline_definition_config=pipeline_definition_config,
@@ -442,10 +511,18 @@ if __name__ == "__main__":
 
     # Submit the pipeline definition to the Pipelines service to create a pipeline if it doesn't exist, or update the pipeline if it does.
     # The role passed in is used by Pipelines to create all of the jobs defined in the steps.
-    pipeline.upsert(role_arn=SAGEMAKER_EXECUTION_ROLE)
+    pipeline.upsert(
+        role_arn=SAGEMAKER_EXECUTION_ROLE,
+        description="ML Pipeline to train model on Palmer Penguins dataset.",
+    )
 
     # Starts the pipeline execution.
-    pipeline.start()
+    pipeline.start(
+        # # You can start the pipeline execution with specific parameters
+        # parameters={"accuracy-threshold": 0.99},
+        # execution_display_name="penguins-pipeline-execution",
+        # execution_description="Executing Pipeline, overiding the default accuracy threshold to reach the fail step.",
+    )
 
     # execution = pipeline.start()
     # More info: https://docs.aws.amazon.com/sagemaker/latest/dg/run-pipeline.html
