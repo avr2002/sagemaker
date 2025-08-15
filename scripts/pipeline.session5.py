@@ -1,6 +1,8 @@
 """
 Setup Sagemaker Preprocessing Job Pipeline.
 
+Sagemaker Model Training: https://docs.aws.amazon.com/sagemaker/latest/dg/train-model.html
+
 https://github.com/aws/amazon-sagemaker-examples/tree/main
 """
 

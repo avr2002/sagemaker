@@ -14,9 +14,13 @@ from pathlib import Path
 import sagemaker
 from sagemaker.estimator import Estimator
 from sagemaker.inputs import TrainingInput
+from sagemaker.model_metrics import MetricsSource, ModelMetrics
 from sagemaker.processing import FrameworkProcessor, ProcessingInput, ProcessingOutput
+from sagemaker.tensorflow.model import TensorFlowModel
 from sagemaker.tensorflow.processing import TensorFlowProcessor
-from sagemaker.workflow.parameters import ParameterString
+from sagemaker.workflow.functions import Join, JsonGet
+from sagemaker.workflow.model_step import ModelStep
+from sagemaker.workflow.parameters import ParameterFloat, ParameterString
 from sagemaker.workflow.pipeline import Pipeline
 from sagemaker.workflow.pipeline_context import LocalPipelineSession, PipelineSession
 from sagemaker.workflow.pipeline_definition_config import PipelineDefinitionConfig
@@ -46,11 +50,6 @@ sagemaker_session = (
 # https://docs.aws.amazon.com/sagemaker/latest/dg/notebooks-available-instance-types.html
 # locally instance_type can also be "local_gpu"
 instance_type = "local" if env_vars["LOCAL_MODE"] == "true" else "ml.m5.2xlarge"  # "ml.m5.xlarge"
-
-# WARNING:sagemaker.workflow.utilities:Popping out 'TrainingJobName' from the pipeline definition
-# by default since it will be overridden at pipeline execution time.
-# Please utilize the PipelineDefinitionConfig to persist this field in the pipeline definition if desired.
-pipeline_definition_config = PipelineDefinitionConfig(use_custom_job_prefix=True)
 
 # define a parameter for the input data
 dataset_location = ParameterString(name="dataset-location", default_value=f"{S3_LOCATION}/data/")
@@ -90,6 +89,7 @@ framework_processor = FrameworkProcessor(
 )
 preprocessing_step = ProcessingStep(
     name="preprocess-data",
+    display_name="Preprocess Data",
     step_args=framework_processor.run(
         # job_name="data-preprocessing",
         code="src/penguins/preprocessor.py",
@@ -192,6 +192,7 @@ custom_estimator = Estimator(
 )
 training_step = TrainingStep(
     name="train-model",
+    display_name="Train Model",
     step_args=custom_estimator.fit(
         inputs={
             "train": TrainingInput(
@@ -270,6 +271,7 @@ evaluation_processor = TensorFlowProcessor(
 
 evaluation_step = ProcessingStep(
     name="evaluate-model",
+    display_name="Evaluate Model",
     step_args=evaluation_processor.run(
         code="src/penguins/evaluate.py",
         dependencies=["src/penguins", "requirements.txt"],
@@ -309,6 +311,117 @@ evaluation_step = ProcessingStep(
 )
 
 
+##########################
+### Model Registration ###
+##########################
+
+# ref: Sagemaker: https://docs.aws.amazon.com/sagemaker/latest/dg/model-registry.html
+# Neptune: https://neptune.ai/blog/ml-model-registry
+# MLflow: https://mlflow.org/docs/latest/ml/model-registry/
+# ZenML: https://docs.zenml.io/stacks/stack-components/model-registries
+
+
+# SageMaker Model Registry --
+# The SageMaker Model Registry is structured as several Model (Package) Groups with model packages in each group.
+# These Model Groups can optionally be added to one or more Collections. Each model package in a Model Group corresponds to a
+# trained model. The version of each model package is a numerical value that starts at 1 and is incremented with each new model
+# package added to a Model Group.
+
+
+# To register a model in SageMaker Model Registry, we create a "SageMaker Model" object which is nothing but
+# an abstraction over the trained model assets/artifacts, along with model performance metrics (accuracy, precision, etc.).
+# And we use the "ModelStep" in the pipeline to register the model in the SageMaker Model Registry.
+# This "Model" object can later be used for model serving.
+
+
+# **Model Registry Workflow**:
+#    - **Model Package Group**: A collection of model versions (like a Git repository)
+#    - **Model Package**: A specific version of a model with its artifacts, metrics, and metadata
+#    - **Approval Status**: Controls whether a model can be deployed (Approved/Rejected/PendingManualApproval)
+
+# **Benefits**:
+#    - Version control for models
+#    - Centralized model catalog
+#    - Audit trail and lineage tracking
+#    - Approval workflows for production deployment
+#    - Easy model deployment and rollback
+
+# The registration step will create a new model package each time the pipeline runs, allowing you to track different
+# versions of your model with their corresponding performance metrics.
+
+
+# Create a Sagemaker Model
+# from sagemaker.model import Model
+# Model(
+#     image_uri=custom_estimator.image_uri,
+#     model_data=training_step.properties.ModelArtifacts.S3ModelArtifacts,  # model_assets
+#     source_dir="src/penguins",
+#     code_location=f"{S3_LOCATION}/training/",
+#     entry_point="src/penguins/train.py",
+#     role=SAGEMAKER_EXECUTION_ROLE,
+#     sagemaker_session=sagemaker_session,
+# )
+
+tf_model = TensorFlowModel(
+    model_data=training_step.properties.ModelArtifacts.S3ModelArtifacts,  # model_assets
+    framework_version="2.12.0",
+    role=SAGEMAKER_EXECUTION_ROLE,
+    sagemaker_session=sagemaker_session,
+)
+
+# Create Model Metrics Object
+model_metrics = ModelMetrics(
+    model_statistics=MetricsSource(
+        # We cannot simply do string concatenation with S3Uri_dir_path + "/evaluation.json"
+        # Because the `evaluation_step.properties.ProcessingOutputConfig.Outputs["evaluation"].S3Output.S3Uri`
+        # is not a regular Python String - it's a SageMaker pipeline property that gets resolved at pipeline execution time.
+        s3_uri=Join(
+            on="/",
+            values=[
+                # this gives the S3 dir. path, so we need to join it with the file name
+                evaluation_step.properties.ProcessingOutputConfig.Outputs["evaluation"].S3Output.S3Uri,
+                "evaluation.json",
+            ],
+        ),
+        content_type="application/json",
+    )
+)
+
+# Register the model using model step
+register_model_step = ModelStep(
+    name="register-model",
+    display_name="Register Model",
+    step_args=tf_model.register(
+        model_package_group_name="basic-penguins-model-group",
+        model_metrics=model_metrics,
+        drift_check_baselines=None,
+        approval_status="Approved",  # Literal["Approved", "Rejected", "PendingManualApproval"]
+        content_types=["text/csv"],  # The content type of the model input
+        response_types=["application/json"],  # The type of prediction the model sends back
+        transform_instances=[instance_type],  # The instance type(s) that can be used for batch transform jobs
+        inference_instances=[instance_type],  # The instance type(s) that can be used for real-time inference
+        domain="MACHINE_LEARNING",  # Literal["COMPUTER_VISION", "NATURAL_LANGUAGE_PROCESSING", "MACHINE_LEARNING"]
+        task="CLASSIFICATION",  # Literal["OBJECT_DETECTION", "TEXT_GENERATION", "IMAGE_SEGMENTATION", "CLASSIFICATION", "REGRESSION", "OTHER"]
+        framework="TENSORFLOW",
+        framework_version="2.12.0",
+    ),
+)
+# ^^^NOTE: No Local Mode for Model Registration Step
+# ClientError: An error occurred (ValidationException) when calling the start_pipeline_execution operation: Step type RegisterModel is not supported in
+# local mode.
+
+
+
+################
+### Pipeline ###
+################
+
+
+# WARNING:sagemaker.workflow.utilities:Popping out 'TrainingJobName' from the pipeline definition
+# by default since it will be overridden at pipeline execution time.
+# Please utilize the PipelineDefinitionConfig to persist this field in the pipeline definition if desired.
+pipeline_definition_config = PipelineDefinitionConfig(use_custom_job_prefix=True)
+
 # Create the pipeline
 pipeline = Pipeline(
     name="e2e-ml-pipeline",
@@ -317,6 +430,7 @@ pipeline = Pipeline(
         preprocessing_step,
         training_step,
         evaluation_step,
+        register_model_step,
     ],
     sagemaker_session=sagemaker_session,
     pipeline_definition_config=pipeline_definition_config,
@@ -325,5 +439,31 @@ pipeline = Pipeline(
 if __name__ == "__main__":
     # # Note: sagemaker.get_execution_role does not work outside sagemaker environment
     # role = sagemaker.get_execution_role()
+
+    # Submit the pipeline definition to the Pipelines service to create a pipeline if it doesn't exist, or update the pipeline if it does.
+    # The role passed in is used by Pipelines to create all of the jobs defined in the steps.
     pipeline.upsert(role_arn=SAGEMAKER_EXECUTION_ROLE)
+
+    # Starts the pipeline execution.
     pipeline.start()
+
+    # execution = pipeline.start()
+    # More info: https://docs.aws.amazon.com/sagemaker/latest/dg/run-pipeline.html
+
+
+# Different type of steps in a SageMaker pipeline:
+# StepTypeEnum:
+#   - CONDITION = "Condition"
+#   - CREATE_MODEL = "Model"
+#   - PROCESSING = "Processing"
+#   - REGISTER_MODEL = "RegisterModel"
+#   - TRAINING = "Training"
+#   - TRANSFORM = "Transform"
+#   - CALLBACK = "Callback"
+#   - TUNING = "Tuning"
+#   - LAMBDA = "Lambda"
+#   - QUALITY_CHECK = "QualityCheck"
+#   - CLARIFY_CHECK = "ClarifyCheck"
+#   - EMR = "EMR"
+#   - FAIL = "Fail"
+#   - AUTOML = "AutoML"
