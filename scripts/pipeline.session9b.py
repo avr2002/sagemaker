@@ -14,6 +14,7 @@ from pathlib import Path
 import sagemaker
 from sagemaker.estimator import Estimator
 from sagemaker.inputs import TrainingInput
+from sagemaker.lambda_helper import Lambda
 from sagemaker.model_metrics import MetricsSource, ModelMetrics
 from sagemaker.processing import FrameworkProcessor, ProcessingInput, ProcessingOutput
 from sagemaker.tensorflow.model import TensorFlowModel
@@ -22,8 +23,9 @@ from sagemaker.workflow.condition_step import ConditionStep
 from sagemaker.workflow.conditions import ConditionGreaterThanOrEqualTo
 from sagemaker.workflow.fail_step import FailStep
 from sagemaker.workflow.functions import Join, JsonGet
+from sagemaker.workflow.lambda_step import LambdaOutput, LambdaOutputTypeEnum, LambdaStep
 from sagemaker.workflow.model_step import ModelStep
-from sagemaker.workflow.parameters import ParameterString
+from sagemaker.workflow.parameters import ParameterFloat, ParameterString
 from sagemaker.workflow.pipeline import Pipeline
 from sagemaker.workflow.pipeline_context import LocalPipelineSession, PipelineSession
 from sagemaker.workflow.pipeline_definition_config import PipelineDefinitionConfig
@@ -269,7 +271,6 @@ else:
 
 # The model group name used for Model Registry
 MODEL_PACKAGE_GROUP_NAME = "basic-penguins-model-group"
-
 evaluation_processor = TensorFlowProcessor(
     base_job_name="model-evaluation-job",
     code_location=f"{S3_LOCATION}/evaluation/",
@@ -357,12 +358,18 @@ evaluation_step = ProcessingStep(
 #    - **Model Package**: A specific version of a model with its artifacts, metrics, and metadata
 #    - **Approval Status**: Controls whether a model can be deployed (Approved/Rejected/PendingManualApproval)
 
+# **Benefits**:
+#    - Version control for models
+#    - Centralized model catalog
+#    - Audit trail and lineage tracking
+#    - Approval workflows for production deployment
+#    - Easy model deployment and rollback
+
 # The registration step will create a new model package each time the pipeline runs, allowing you to track different
 # versions of your model with their corresponding performance metrics.
 
 
 # Create a Sagemaker Model
-
 # from sagemaker.model import Model
 # Model(
 #     image_uri=custom_estimator.image_uri,
@@ -373,6 +380,7 @@ evaluation_step = ProcessingStep(
 #     role=SAGEMAKER_EXECUTION_ROLE,
 #     sagemaker_session=sagemaker_session,
 # )
+
 tf_model = TensorFlowModel(
     model_data=training_step.properties.ModelArtifacts.S3ModelArtifacts,  # model_assets
     framework_version="2.12.0",
@@ -438,6 +446,17 @@ register_model_step = ModelStep(
 #     fail_step
 # """
 
+
+# Default baseline accuracy for when no previous model exists
+# baseline_accuracy = ParameterFloat(
+#     name="baseline-accuracy",
+#    # default_value=0.70,
+#     default_value=get_baseline_step.properties.Outputs["baseline_accuracy"],
+# )
+
+# ^^^NOTE: Now, Instead of hardcoding the baseline accuracy, we are dynamically getting it.
+# And the baseline_accuracy value now is the previous model's accuracy that got registered in the model registry.
+
 # Create a FailStep that will fail the pipeline if the model performance is not better than baseline
 fail_step = FailStep(
     name="fail-step",
@@ -458,6 +477,7 @@ fail_step = FailStep(
                 property_file=evaluation_report,
                 json_path="metrics.baseline_accuracy.value",
             ),
+            # get_baseline_step.properties.Outputs["baseline_accuracy"],
         ],
     ),
 )
@@ -536,3 +556,67 @@ if __name__ == "__main__":
 
     # execution = pipeline.start()
     # More info: https://docs.aws.amazon.com/sagemaker/latest/dg/run-pipeline.html
+
+
+# Different type of steps in a SageMaker pipeline:
+# StepTypeEnum:
+#   - CONDITION = "Condition"
+#   - CREATE_MODEL = "Model"
+#   - PROCESSING = "Processing"
+#   - REGISTER_MODEL = "RegisterModel"
+#   - TRAINING = "Training"
+#   - TRANSFORM = "Transform"
+#   - CALLBACK = "Callback"
+#   - TUNING = "Tuning"
+#   - LAMBDA = "Lambda"
+#   - QUALITY_CHECK = "QualityCheck"
+#   - CLARIFY_CHECK = "ClarifyCheck"
+#   - EMR = "EMR"
+#   - FAIL = "Fail"
+#   - AUTOML = "AutoML"
+
+
+# ----------------------------------------
+
+
+### Below I was experimenting with Lambda Step in SageMaker Pipelines.
+# I cannot come to like this because the "Lambda" class creates a new Lambda function
+# and you need create a new IAM role for the lambda function. This diverges the infrastructure that we
+# are creating and tracking via our CDK Script. And couples the infrastructure and the Pipeline more tightly.
+
+
+# ref: https://aws.amazon.com/blogs/machine-learning/use-a-sagemaker-pipeline-lambda-step-for-lightweight-model-deployments/
+# Notebook: https://github.com/aws-samples/amazon-sagemaker-script-mode/blob/master/hugging-face-lambda-step/sm-pipelines-hugging-face-lambda-step.ipynb
+# IamRole function for Lambda: https://github.com/aws-samples/amazon-sagemaker-script-mode/blob/master/hugging-face-lambda-step/iam_helper.py
+
+# # Lambda function to get the accuracy of the latest registered model
+# # ref: https://aws.amazon.com/blogs/machine-learning/use-a-sagemaker-pipeline-lambda-step-for-lightweight-model-deployments/
+# get_baseline_accuracy_lambda_func = Lambda(
+#     function_name="sagemaker-get-baseline-accuracy",
+#     # We cannot use the SAGEMAKER_EXECUTION_ROLE, the lambda function will need to have its own IAM role with access to Sagemaker.
+#     # execution_role_arn=SAGEMAKER_EXECUTION_ROLE,
+#     execution_role_arn="your_lambda_iam_role",
+#     script="src/penguins/lambdas/get_baseline_accuracy.py",
+#     handler="get_baseline_accuracy.lambda_handler",
+#     timeout=120,
+#     memory_size=128,
+# )
+
+# baseline_accuracy_lambda_output = LambdaOutput(
+#     output_name="baseline_accuracy",
+#     output_type=LambdaOutputTypeEnum.Float,
+# )
+
+# # Lambda step to get the latest model accuracy
+# # The inputs provided to the Lambda function can be retrieved via the `event` object within the `lambda_handler` function
+# # in the Lambda
+# get_baseline_step = LambdaStep(
+#     name="get-baseline-accuracy",
+#     display_name="Get Baseline Model Accuracy",
+#     lambda_func=get_baseline_accuracy_lambda_func,
+#     inputs={
+#         "model_package_group_name": MODEL_PACKAGE_GROUP_NAME,
+#         "region": sagemaker_session.boto_region_name,
+#     },
+#     outputs=[baseline_accuracy_lambda_output],
+# )

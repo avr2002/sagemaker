@@ -8,16 +8,18 @@ import numpy as np
 import pandas as pd
 from comet_ml import Experiment
 from packaging import version
-from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.metrics import accuracy_score, confusion_matrix, precision_score, recall_score
 from tensorflow import keras
 
 from penguins.consts import SAGEMAKER_PROCESSING_DIR
+from penguins.utils.get_baseline_accuracy import get_baseline_accuracy_of_last_registered_model
 
 
 def evaluate(
     model_path: str | Path,
     test_path: str | Path,
     output_path: str | Path,
+    model_package_group_name: str,
     experiment: Optional[Experiment] = None,
 ) -> None:
     """Model evaluation Script.
@@ -26,6 +28,7 @@ def evaluate(
     :param test_path: The path to the test data directory.
     :param output_path: The path to the output directory where we will save evaluation reports.
     :param experiment: Comet ML experiment object.
+    :param model_package_group_name: SageMaker model package group name to get baseline accuracy.
     """
     X_test = pd.read_csv(Path(test_path) / "test.csv")
     y_test = X_test[X_test.columns[-1]]
@@ -46,15 +49,29 @@ def evaluate(
 
     predictions = np.argmax(model.predict(X_test), axis=-1)
     accuracy = accuracy_score(y_true=y_test, y_pred=predictions)
+
+    # Compute precision and recall using macro averaging for multi-class classification
+    precision = precision_score(y_true=y_test, y_pred=predictions, average="weighted")
+    recall = recall_score(y_true=y_test, y_pred=predictions, average="weighted")
+
     print(f"Test accuracy: {accuracy}")
+    print(f"Test precision (weighted): {precision}")
+    print(f"Test recall (weighted): {recall}")
 
     # Compute confusion matrix
     cm = confusion_matrix(y_true=y_test, y_pred=predictions)
     print(f"Confusion Matrix:\n{cm}")
 
+    # Get baseline accuracy from the latest registered model
+    baseline_accuracy = get_baseline_accuracy_of_last_registered_model(model_package_group_name)
+    print(f"Baseline accuracy from latest registered model: {baseline_accuracy}")
+
     # Log metrics and confusion matrix to Comet
     if experiment:
         experiment.log_metric("test_accuracy", accuracy)
+        experiment.log_metric("test_precision", precision)
+        experiment.log_metric("test_recall", recall)
+        experiment.log_metric("baseline_accuracy", baseline_accuracy)
         experiment.log_dataset_hash(X_test)
         experiment.log_confusion_matrix(
             y_true=y_test.astype(int),
@@ -69,7 +86,9 @@ def evaluate(
     evaluation_report = {
         "metrics": {
             "accuracy": {"value": accuracy},
-            # "precision": {"value": precision},
+            "precision": {"value": precision},
+            "recall": {"value": recall},
+            "baseline_accuracy": {"value": baseline_accuracy},
         },
     }
 
@@ -103,11 +122,15 @@ if __name__ == "__main__":
         experiment.set_name("model-evaluation")
         experiment.add_tag("evaluation")
 
+    # Get model package group name from environment variable
+    model_package_group_name = os.environ["MODEL_PACKAGE_GROUP_NAME"]
+
     evaluate(
         model_path=SAGEMAKER_PROCESSING_DIR / "model/",  # /opt/ml/processing/model
         test_path=SAGEMAKER_PROCESSING_DIR / "test/",
         output_path=SAGEMAKER_PROCESSING_DIR / "evaluation/",
         experiment=experiment,
+        model_package_group_name=model_package_group_name,
     )
 
     print("Model Evaluation Completed!")

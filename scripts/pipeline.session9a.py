@@ -23,7 +23,7 @@ from sagemaker.workflow.conditions import ConditionGreaterThanOrEqualTo
 from sagemaker.workflow.fail_step import FailStep
 from sagemaker.workflow.functions import Join, JsonGet
 from sagemaker.workflow.model_step import ModelStep
-from sagemaker.workflow.parameters import ParameterString
+from sagemaker.workflow.parameters import ParameterFloat, ParameterString
 from sagemaker.workflow.pipeline import Pipeline
 from sagemaker.workflow.pipeline_context import LocalPipelineSession, PipelineSession
 from sagemaker.workflow.pipeline_definition_config import PipelineDefinitionConfig
@@ -267,9 +267,6 @@ if os.environ["LOCAL_MODE"] == "true":
 else:
     eval_step_image_uri = None
 
-# The model group name used for Model Registry
-MODEL_PACKAGE_GROUP_NAME = "basic-penguins-model-group"
-
 evaluation_processor = TensorFlowProcessor(
     base_job_name="model-evaluation-job",
     code_location=f"{S3_LOCATION}/evaluation/",
@@ -278,10 +275,7 @@ evaluation_processor = TensorFlowProcessor(
     image_uri=eval_step_image_uri,
     instance_count=1,
     instance_type=instance_type,
-    env={
-        **env_vars,
-        "MODEL_PACKAGE_GROUP_NAME": MODEL_PACKAGE_GROUP_NAME,
-    },
+    env=env_vars,
     role=SAGEMAKER_EXECUTION_ROLE,
     sagemaker_session=sagemaker_session,
 )
@@ -316,8 +310,9 @@ evaluation_step = ProcessingStep(
                 output_name="evaluation",  # The output name must match the "PropertyFile" output name
                 source=str(SAGEMAKER_PROCESSING_DIR / "evaluation"),
                 destination=f"{S3_LOCATION}/evaluation",
-                s3_upload_mode="EndOfJob",  # "Continuous" if not LOCAL_MODE == "true" else "EndOfJob"
-                # "Continuous" or "EndOfJob"
+                s3_upload_mode=(
+                    "Continuous" if not LOCAL_MODE == "true" else "EndOfJob"
+                ),  # "Continuous" or "EndOfJob"
                 # ^^^NOTE: RuntimeError: UploadMode: Continuous is not currently supported in Local Mode.
             )
         ],
@@ -357,12 +352,18 @@ evaluation_step = ProcessingStep(
 #    - **Model Package**: A specific version of a model with its artifacts, metrics, and metadata
 #    - **Approval Status**: Controls whether a model can be deployed (Approved/Rejected/PendingManualApproval)
 
+# **Benefits**:
+#    - Version control for models
+#    - Centralized model catalog
+#    - Audit trail and lineage tracking
+#    - Approval workflows for production deployment
+#    - Easy model deployment and rollback
+
 # The registration step will create a new model package each time the pipeline runs, allowing you to track different
 # versions of your model with their corresponding performance metrics.
 
 
 # Create a Sagemaker Model
-
 # from sagemaker.model import Model
 # Model(
 #     image_uri=custom_estimator.image_uri,
@@ -373,6 +374,7 @@ evaluation_step = ProcessingStep(
 #     role=SAGEMAKER_EXECUTION_ROLE,
 #     sagemaker_session=sagemaker_session,
 # )
+
 tf_model = TensorFlowModel(
     model_data=training_step.properties.ModelArtifacts.S3ModelArtifacts,  # model_assets
     framework_version="2.12.0",
@@ -402,14 +404,14 @@ model_metrics = ModelMetrics(
 # ref: https://sagemaker.readthedocs.io/en/stable/amazon_sagemaker_model_building_pipeline.html#pipeline-functions
 
 # Register the model using model step
-# MODEL_PACKAGE_GROUP_NAME = "basic-penguins-model-group"
 register_model_step = ModelStep(
     name="register-model",
     display_name="Register Model",
     step_args=tf_model.register(
-        model_package_group_name=MODEL_PACKAGE_GROUP_NAME,
+        model_package_group_name="basic-penguins-model-group",
         model_metrics=model_metrics,
         drift_check_baselines=None,
+        # Approval Status of a Model: https://docs.aws.amazon.com/sagemaker/latest/dg/model-registry-approve.html
         approval_status="Approved",  # Literal["Approved", "Rejected", "PendingManualApproval"]
         content_types=["text/csv"],  # The content type of the model input
         response_types=["application/json"],  # The type of prediction the model sends back
@@ -430,39 +432,35 @@ register_model_step = ModelStep(
 ### Conditional Pipeline Registration ###
 #########################################
 
-# Register the model only if the model performance is better than the latest registered model version
+# Register the model only if the model performance is acceptable, else fail the pipeline
 # """
-# if current_model_accuracy >= latest_registered_model_accuracy:
+# if model_accuracy >= accuracy_threshold:
 #     register_model_step
 # else:
 #     fail_step
 # """
 
-# Create a FailStep that will fail the pipeline if the model performance is not better than baseline
+# Let's define a pipeline parameter that defines the threshold for model performance
+accuracy_threshold = ParameterFloat(
+    name="accuracy-threshold",
+    default_value=0.70,
+)
+
+# Create a FailStep that will fail the pipeline if the model performance is not acceptable
 fail_step = FailStep(
     name="fail-step",
     display_name="Fail Pipeline",
-    description="Fail the pipeline if model accuracy is not better than the latest registered model.",
+    description="Fail the pipeline if model accuracy is below the threshold.",
     error_message=Join(
         on=" ",
         values=[
-            "Execution failed because model's accuracy",
-            JsonGet(
-                step_name=evaluation_step.name,
-                property_file=evaluation_report,
-                json_path="metrics.accuracy.value",
-            ),
-            "is not better than baseline accuracy",
-            JsonGet(
-                step_name=evaluation_step.name,
-                property_file=evaluation_report,
-                json_path="metrics.baseline_accuracy.value",
-            ),
+            "Execution failed because model's accuracy is lower than",
+            accuracy_threshold,
         ],
     ),
 )
 
-# Define the condition to check whether the current model accuracy is better than baseline
+# Define the condition to check whether the model accuracy is above the threshold
 # ref: https://sagemaker.readthedocs.io/en/stable/workflows/pipelines/sagemaker.workflow.pipelines.html#conditions
 condition = ConditionGreaterThanOrEqualTo(
     left=JsonGet(  # type: ignore[arg-type]
@@ -470,18 +468,13 @@ condition = ConditionGreaterThanOrEqualTo(
         property_file=evaluation_report,
         json_path="metrics.accuracy.value",  # The path to the accuracy value in the evaluation report
     ),
-    # right=get_baseline_step.properties.Outputs["baseline_accuracy"],  # Use baseline from latest model
-    right=JsonGet(  # type: ignore[arg-type]
-        step_name=evaluation_step.name,
-        property_file=evaluation_report,
-        json_path="metrics.baseline_accuracy.value",  # The path to the baseline accuracy value in the evaluation report
-    ),
+    right=accuracy_threshold,  # The threshold value for accuracy
 )
 
-# Set the Condition Step
+# Set the Conditon Step
 condition_step = ConditionStep(
-    name="check-model-performance",
-    display_name="Check Model Performance vs Baseline",
+    name="check-model-accuracy",
+    display_name="Check Model Accuracy",
     conditions=[condition],
     if_steps=[register_model_step],
     else_steps=[fail_step],
@@ -503,12 +496,12 @@ pipeline_definition_config = PipelineDefinitionConfig(use_custom_job_prefix=True
 # JSON Schema: https://aws-sagemaker-mlops.github.io/sagemaker-model-building-pipeline-definition-JSON-schema/
 pipeline = Pipeline(
     name="e2e-ml-pipeline",
-    parameters=[dataset_location],
+    parameters=[dataset_location, accuracy_threshold],
     steps=[
         preprocessing_step,
         training_step,
         evaluation_step,
-        # get_baseline_step,
+        # register_model_step,
         condition_step,
     ],
     sagemaker_session=sagemaker_session,
@@ -536,3 +529,31 @@ if __name__ == "__main__":
 
     # execution = pipeline.start()
     # More info: https://docs.aws.amazon.com/sagemaker/latest/dg/run-pipeline.html
+
+
+# Different type of steps in a SageMaker pipeline:
+# StepTypeEnum:
+#   - CONDITION = "Condition"
+#   - CREATE_MODEL = "Model"
+#   - PROCESSING = "Processing"
+#   - REGISTER_MODEL = "RegisterModel"
+#   - TRAINING = "Training"
+#   - TRANSFORM = "Transform"
+#   - CALLBACK = "Callback"
+#   - TUNING = "Tuning"
+#   - LAMBDA = "Lambda"
+#   - QUALITY_CHECK = "QualityCheck"
+#   - CLARIFY_CHECK = "ClarifyCheck"
+#   - EMR = "EMR"
+#   - FAIL = "Fail"
+#   - AUTOML = "AutoML"
+
+
+# --------------------------------------------
+# TODO: SageMaker's Inference Recommender can automatically help us select the best instance type and
+# configuration (such as instance count, container parameters, and model optimizations) or serverless configuration
+# (such as max concurrency and memory size) for a model and workload.
+# Configure the Inference Recommender to get recommendations for deploying the model we built.
+
+# ref: https://docs.aws.amazon.com/sagemaker/latest/dg/inference-recommender.html
+# https://github.com/aws/amazon-sagemaker-examples/blob/main/sagemaker-inference-recommender/inference-recommender.ipynb

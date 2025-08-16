@@ -7,6 +7,8 @@ import tarfile
 from pathlib import Path
 from typing import Optional, Union
 
+# ruff: fmt: off
+# ruff: fmt: on
 import keras
 import numpy as np
 import pandas as pd
@@ -16,7 +18,7 @@ from keras.layers import Dense
 from keras.models import Sequential
 from keras.optimizers import SGD
 from packaging import version
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score
 
 # ref: https://www.tensorflow.org/tfx/tutorials/serving/rest_simple#save_your_model
 # ref: https://keras.io/examples/keras_recipes/tf_serving/#save-the-model
@@ -102,6 +104,12 @@ def train(
     val_accuracy = accuracy_score(y_true=y_validation, y_pred=predictions)
     print(f"Validation accuracy: {val_accuracy}")
 
+    val_precision = precision_score(y_true=y_validation, y_pred=predictions, average="weighted")
+    print(f"Validation precision(weighted): {val_precision}")
+
+    val_recall = recall_score(y_true=y_validation, y_pred=predictions, average="weighted")
+    print(f"Validation recall(weighted): {val_recall}")
+
     # Starting on version 3, Keras changed the model saving format.
     # Since we are running the training script using two different versions
     # of Keras, we need to check to see which version we are using and save
@@ -145,6 +153,13 @@ def train(
         experiment.log_confusion_matrix(
             y_true=y_validation.astype(int),
             y_predicted=predictions.astype(int),
+        )
+        experiment.log_metrics(
+            {
+                "validation/accuracy": val_accuracy,
+                "validation/precision": val_precision,
+                "validation/recall": val_recall,
+            }
         )
         experiment.log_model("penguins", model_filepath.as_posix())
 

@@ -24,7 +24,7 @@ from sagemaker.workflow.pipeline_definition_config import PipelineDefinitionConf
 from sagemaker.workflow.steps import CacheConfig, ProcessingStep, TrainingStep
 
 from penguins.consts import BUCKET, LOCAL_MODE, S3_LOCATION, SAGEMAKER_EXECUTION_ROLE, SAGEMAKER_PROCESSING_DIR
-from penguins.utils import build_and_push_docker_image
+from penguins.utils.docker import build_and_push_docker_image
 
 env_vars = {
     "COMET_API_KEY": os.getenv("COMET_API_KEY", ""),
