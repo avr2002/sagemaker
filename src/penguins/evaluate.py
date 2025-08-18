@@ -62,7 +62,7 @@ def evaluate(
     cm = confusion_matrix(y_true=y_test, y_pred=predictions)
     print(f"Confusion Matrix:\n{cm}")
 
-    # Get baseline accuracy from the latest registered model
+    # Get baseline accuracy from the latest registered model -- Used for comparing model performance and registering it to the model registry
     baseline_accuracy = get_baseline_accuracy_of_last_registered_model(model_package_group_name)
     print(f"Baseline accuracy from latest registered model: {baseline_accuracy}")
 

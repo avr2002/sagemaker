@@ -34,6 +34,8 @@ function run-pipeline () {
 
 
 function cdk-bootstrap () {
+    npm install -g aws-cdk
+    
     AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
     cdk bootstrap "aws://${AWS_ACCOUNT_ID}/${AWS_REGION}"
 }

@@ -25,7 +25,7 @@ cdk = ["aws-cdk-lib>=2.208.0", "constructs>=10.4.2"]
 notebook = ["ipykernel>=6.29.5", "jupyter>=1.1.1", "rich>=13.9.4"]
 static-code-qa = ["pre-commit>=4.2.0", "ruff>=0.12.7"]
 stubs = [
-    "boto3-stubs[ecr,s3,sagemaker]>=1.39.17",
+    "boto3-stubs[ecr,s3,sagemaker,sns]>=1.39.17",
 ]
 test = ["ipytest>=0.14.2", "pytest>=8.4.1", "pytest-cov>=6.2.1"]
 

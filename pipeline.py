@@ -10,6 +10,7 @@ https://github.com/aws/amazon-sagemaker-examples/tree/main
 # the processing code, outputs for processing, and job arguments.
 import os
 from pathlib import Path
+from typing import Any
 
 import sagemaker
 from sagemaker.estimator import Estimator
@@ -18,6 +19,7 @@ from sagemaker.model_metrics import MetricsSource, ModelMetrics
 from sagemaker.processing import FrameworkProcessor, ProcessingInput, ProcessingOutput
 from sagemaker.tensorflow.model import TensorFlowModel
 from sagemaker.tensorflow.processing import TensorFlowProcessor
+from sagemaker.workflow.callback_step import CallbackStep
 from sagemaker.workflow.condition_step import ConditionStep
 from sagemaker.workflow.conditions import ConditionGreaterThanOrEqualTo
 from sagemaker.workflow.fail_step import FailStep
@@ -64,6 +66,12 @@ instance_type = "local" if env_vars["LOCAL_MODE"] == "true" else "ml.m5.2xlarge"
 dataset_location = ParameterString(name="dataset-location", default_value=f"{S3_LOCATION}/data/")
 
 # Setup Cache for the pipeline step
+# ref: https://sagemaker.readthedocs.io/en/stable/workflows/pipelines/sagemaker.workflow.pipelines.html#sagemaker.workflow.steps.CacheConfig
+
+# If caching is enabled, the pipeline attempts to find a previous execution of a Step that was called with the same arguments.
+# Step caching only considers successful execution. If a successful previous execution is found, the pipeline propagates the values
+# from the previous execution rather than recomputing the Step. When multiple successful executions exist within the timeout period,
+# it uses the result for the most recent successful execution.
 cache_config = CacheConfig(
     enable_caching=False,  # Enable or disable caching
     expire_after="T3H",  # expiration time in ISO8601 duration string format - https://en.wikipedia.org/wiki/ISO_8601#Durations
@@ -339,26 +347,10 @@ evaluation_step = ProcessingStep(
 # ZenML: https://docs.zenml.io/stacks/stack-components/model-registries
 
 
-# SageMaker Model Registry --
-# The SageMaker Model Registry is structured as several Model (Package) Groups with model packages in each group.
-# These Model Groups can optionally be added to one or more Collections. Each model package in a Model Group corresponds to a
-# trained model. The version of each model package is a numerical value that starts at 1 and is incremented with each new model
-# package added to a Model Group.
-
-
 # To register a model in SageMaker Model Registry, we create a "SageMaker Model" object which is nothing but
 # an abstraction over the trained model assets/artifacts, along with model performance metrics (accuracy, precision, etc.).
 # And we use the "ModelStep" in the pipeline to register the model in the SageMaker Model Registry.
 # This "Model" object can later be used for model serving.
-
-
-# **Model Registry Workflow**:
-#    - **Model Package Group**: A collection of model versions (like a Git repository)
-#    - **Model Package**: A specific version of a model with its artifacts, metrics, and metadata
-#    - **Approval Status**: Controls whether a model can be deployed (Approved/Rejected/PendingManualApproval)
-
-# The registration step will create a new model package each time the pipeline runs, allowing you to track different
-# versions of your model with their corresponding performance metrics.
 
 
 # Create a Sagemaker Model
@@ -470,12 +462,32 @@ condition = ConditionGreaterThanOrEqualTo(
         property_file=evaluation_report,
         json_path="metrics.accuracy.value",  # The path to the accuracy value in the evaluation report
     ),
-    # right=get_baseline_step.properties.Outputs["baseline_accuracy"],  # Use baseline from latest model
+    # right=0.99,
     right=JsonGet(  # type: ignore[arg-type]
         step_name=evaluation_step.name,
         property_file=evaluation_report,
         json_path="metrics.baseline_accuracy.value",  # The path to the baseline accuracy value in the evaluation report
     ),
+)
+
+
+# Setting up a CallbackStep to notify the pipeline failures and send email notifications
+failure_notification_inputs: dict[str, Any] = {
+    key: JsonGet(
+        step_name=evaluation_step.name,
+        property_file=evaluation_report,
+        json_path=f"metrics.{key}.value",
+    )
+    for key in ["accuracy", "baseline_accuracy", "precision", "recall"]
+}
+failure_notification_inputs["model_package_group"] = MODEL_PACKAGE_GROUP_NAME
+
+notify_pipeline_failure_step = CallbackStep(
+    name="notify-pipeline-failure",
+    display_name="Notify Pipeline Failure",
+    sqs_queue_url=os.environ["SQS_QUEUE_URL"],
+    inputs=failure_notification_inputs,
+    outputs=[],
 )
 
 # Set the Condition Step
@@ -484,7 +496,7 @@ condition_step = ConditionStep(
     display_name="Check Model Performance vs Baseline",
     conditions=[condition],
     if_steps=[register_model_step],
-    else_steps=[fail_step],
+    else_steps=[notify_pipeline_failure_step, fail_step],
 )
 
 

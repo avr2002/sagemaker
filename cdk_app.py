@@ -13,11 +13,16 @@
 import os
 
 import aws_cdk as cdk
-from aws_cdk import CfnOutput, RemovalPolicy, Stack
+from aws_cdk import CfnOutput, Duration, RemovalPolicy, Stack
 from aws_cdk import aws_iam as iam
+from aws_cdk import aws_lambda as _lambda
+from aws_cdk import aws_lambda_event_sources as lambda_event_sources
 from aws_cdk import aws_s3 as s3
 from aws_cdk import aws_s3_deployment as s3_deployment
 from aws_cdk import aws_sagemaker as sagemaker
+from aws_cdk import aws_sns as sns
+from aws_cdk import aws_sns_subscriptions as sns_subscriptions
+from aws_cdk import aws_sqs as sqs
 from constructs import Construct
 
 #################
@@ -93,6 +98,11 @@ class SagemakerMLStack(Stack):
         # Add comprehensive policies to SageMaker execution role
         self._add_sagemaker_policies()
 
+        # 3a. Create notification infrastructure
+        self.notification_queue = self._create_notification_queue()
+        self.notification_topic = self._create_notification_topic()
+        self.notification_lambda = self._create_notification_lambda()
+
         # 4. Create SageMaker Domain (optional - can be created manually)
         # Uncomment if you want CDK to manage the SageMaker domain
         self.sagemaker_domain = self._create_sagemaker_domain()
@@ -105,6 +115,107 @@ class SagemakerMLStack(Stack):
 
         # 7. Create outputs
         self._create_outputs()
+
+    def _create_notification_queue(self) -> sqs.Queue:
+        """Create SQS queue for pipeline failure notifications."""
+        dlq = sqs.Queue(
+            self,
+            "NotificationDLQ",
+            queue_name="mlschool-pipeline-notifications-dlq",
+            retention_period=Duration.days(7),
+        )
+
+        return sqs.Queue(
+            self,
+            "NotificationQueue",
+            queue_name="mlschool-pipeline-notifications",
+            visibility_timeout=Duration.minutes(5),
+            receive_message_wait_time=Duration.seconds(20),
+            dead_letter_queue=sqs.DeadLetterQueue(
+                max_receive_count=3,
+                queue=dlq,
+            ),
+        )
+
+    def _create_notification_topic(self) -> sns.Topic:
+        """Create SNS topic for team notifications."""
+        topic = sns.Topic(
+            self,
+            "NotificationTopic",
+            topic_name="mlschool-pipeline-alerts",
+            display_name="ML School Pipeline Alerts",
+        )
+
+        # NOTE: Adding Subscriptions via CDK did not work for some reason.
+        # I would confirm my subscription, and then the next moment I would get another email saying I got unsubscribed
+
+        # # Add email subscriptions: https://docs.aws.amazon.com/cdk/api/v2/python/aws_cdk.aws_sns_subscriptions/README.html
+        # for email in ["amit.raj@pattern.com", "eric.riddoch@pattern.com"]:
+        #     topic.add_subscription(topic_subscription=sns_subscriptions.EmailSubscription(email_address=email))
+
+        return topic
+
+    def _create_notification_lambda(self) -> _lambda.Function:
+        """Create Lambda function to process notifications."""
+        # Create Lambda execution role
+        lambda_role = iam.Role(
+            self,
+            "NotificationLambdaRole",
+            role_name="MLSchool-Lambda-Sagemaker-Notification-Role",
+            assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"),
+            managed_policies=[
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole"),
+                # Add SQS permissions -- saw this managed policy in AWS Console
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaSQSQueueExecutionRole"),
+            ],
+        )
+
+        # Add permissions for SNS, and SageMaker
+        lambda_role.add_to_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=["sns:Publish"],
+                resources=[self.notification_topic.topic_arn],
+            )
+        )
+
+        # For the Callback Step to complete in Sagemaker, Lambda needs to tell Sagemaker notifying with Step Success/Failure
+        lambda_role.add_to_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "sagemaker:SendPipelineExecutionStepSuccess",
+                    "sagemaker:SendPipelineExecutionStepFailure",
+                ],
+                resources=["*"],
+            )
+        )
+
+        # Create Lambda function
+        notification_lambda = _lambda.Function(
+            self,
+            "NotificationLambda",
+            function_name=f"ml-pipeline-notification-handler-{self.stack_name.lower()}",
+            runtime=_lambda.Runtime.PYTHON_3_11,
+            handler="pipeline_failure_notification_handler.lambda_handler",
+            code=_lambda.Code.from_asset("./scripts/lambdas/"),
+            role=lambda_role,
+            timeout=Duration.minutes(5),
+            environment={
+                "SNS_TOPIC_ARN": self.notification_topic.topic_arn,
+            },
+        )
+
+        # Add SQS trigger to Lambda
+        notification_lambda.add_event_source(
+            lambda_event_sources.SqsEventSource(
+                self.notification_queue,
+                batch_size=1,
+                report_batch_item_failures=True,
+            )
+        )
+
+        return notification_lambda
 
     def _add_sagemaker_policies(self) -> None:
         """Add comprehensive IAM policies to SageMaker execution role."""
@@ -226,13 +337,25 @@ class SagemakerMLStack(Stack):
                     ],
                     resources=["*"],
                 ),
+                # SQS permissions for CallbackStep
+                iam.PolicyStatement(
+                    sid="SQS",
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        "sqs:SendMessage",
+                        "sqs:GetQueueAttributes",
+                        "sqs:GetQueueUrl",
+                    ],
+                    resources=["*"],
+                    # [self.notification_queue.queue_arn] if hasattr(self, "notification_queue") else ["*"],
+                ),
             ]
         )
 
         self.sagemaker_execution_role.attach_inline_policy(
             iam.Policy(
                 self,
-                "SageMakerCustomPolicy",
+                "SageMakerAICustomPolicy",
                 document=custom_policy,
             )
         )
@@ -400,6 +523,31 @@ class SagemakerMLStack(Stack):
             "IAMRoleConsoleLink",
             value=f"https://console.aws.amazon.com/iam/home?region={self.region}#/roles/{self.sagemaker_execution_role.role_name}",
             description="AWS Console link to the SageMaker execution role",
+        )
+
+        # Add notification infrastructure outputs
+        CfnOutput(
+            self,
+            "NotificationQueueUrl",
+            value=self.notification_queue.queue_url,
+            description="URL of the notification SQS queue",
+            export_name=f"{self.stack_name}-NotificationQueueUrl",
+        )
+
+        CfnOutput(
+            self,
+            "NotificationTopicArn",
+            value=self.notification_topic.topic_arn,
+            description="ARN of the notification SNS topic",
+            export_name=f"{self.stack_name}-NotificationTopicArn",
+        )
+
+        CfnOutput(
+            self,
+            "NotificationLambdaArn",
+            value=self.notification_lambda.function_arn,
+            description="ARN of the notification Lambda function",
+            export_name=f"{self.stack_name}-NotificationLambdaArn",
         )
 
 

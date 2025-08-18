@@ -281,6 +281,9 @@ s3 = [
 sagemaker = [
     { name = "mypy-boto3-sagemaker" },
 ]
+sns = [
+    { name = "mypy-boto3-sns" },
+]
 
 [[package]]
 name = "botocore"
@@ -1440,6 +1443,18 @@ wheels = [
 ]
 
 [[package]]
+name = "mypy-boto3-sns"
+version = "1.40.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ce/fa/8be4773dd636571c8b3620ab15862ebd501a76a0c193b2141acf23c15e82/mypy_boto3_sns-1.40.1.tar.gz", hash = "sha256:e06d89db10c83364096365c630a144d59ca3e0fdb663bbd6b73bd1816d1e53db", size = 33271, upload-time = "2025-08-01T19:29:36.321Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/be/21/e826d138ccbc5d319e2f64bb2872fe583dddf24ad547f47baf834e6d8992/mypy_boto3_sns-1.40.1-py3-none-any.whl", hash = "sha256:538920699f461b6f142b6dd36492b6a27c2113410ed427422122c7da9d2c921a", size = 40184, upload-time = "2025-08-01T19:29:29.944Z" },
+]
+
+[[package]]
 name = "namex"
 version = "0.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1714,7 +1729,7 @@ static-code-qa = [
     { name = "ruff" },
 ]
 stubs = [
-    { name = "boto3-stubs", extra = ["ecr", "s3", "sagemaker"] },
+    { name = "boto3-stubs", extra = ["ecr", "s3", "sagemaker", "sns"] },
 ]
 test = [
     { name = "ipytest" },
@@ -1748,7 +1763,7 @@ static-code-qa = [
     { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "ruff", specifier = ">=0.12.7" },
 ]
-stubs = [{ name = "boto3-stubs", extras = ["ecr", "s3", "sagemaker"], specifier = ">=1.39.17" }]
+stubs = [{ name = "boto3-stubs", extras = ["ecr", "s3", "sagemaker", "sns"], specifier = ">=1.39.17" }]
 test = [
     { name = "ipytest", specifier = ">=0.14.2" },
     { name = "pytest", specifier = ">=8.4.1" },
