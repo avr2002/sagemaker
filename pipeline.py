@@ -471,6 +471,10 @@ condition = ConditionGreaterThanOrEqualTo(
 )
 
 
+# ref: CallbackStep: https://docs.aws.amazon.com/sagemaker/latest/dg/build-and-manage-steps-types.html
+# https://aws.amazon.com/blogs/machine-learning/extend-amazon-sagemaker-pipelines-to-include-custom-steps-using-callback-steps/
+# callback-step-for-batch-transform: https://github.com/aws-samples/sagemaker-pipelines-callback-step-for-batch-transform/tree/main
+
 # Setting up a CallbackStep to notify the pipeline failures and send email notifications
 failure_notification_inputs: dict[str, Any] = {
     key: JsonGet(
@@ -481,6 +485,7 @@ failure_notification_inputs: dict[str, Any] = {
     for key in ["accuracy", "baseline_accuracy", "precision", "recall"]
 }
 failure_notification_inputs["model_package_group"] = MODEL_PACKAGE_GROUP_NAME
+failure_notification_inputs["step_name"] = evaluation_step.name
 
 notify_pipeline_failure_step = CallbackStep(
     name="notify-pipeline-failure",

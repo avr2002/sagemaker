@@ -20,6 +20,28 @@ SNS_TOPIC_ARN = os.environ["SNS_TOPIC_ARN"]
 
 
 # Tutorial: Using Lambda with Amazon SQS: https://docs.aws.amazon.com/lambda/latest/dg/with-sqs-example.html
+
+# """
+# Sample Payload that SQS receives from SageMaker CallbackStep
+
+# {
+#   "body": {
+#     "token": "SYZ8ExZ3Sd",
+#     "pipelineExecutionArn": "arn:aws:sagemaker:us-east-1:<acc-id>:pipeline/e2e-ml-pipeline/execution/wlaimaypb6hb",
+#     "arguments": {
+#       "model_package_group": "basic-penguins-model-group",
+#       "baseline_accuracy": 0.8235294117647058,
+#       "step_name": "evaluate-model",
+#       "precision": 0.929561157796452,
+#       "recall": 0.9215686274509803,
+#       "accuracy": 0.9215686274509803
+#     },
+#     "status": "Executing"
+#   }
+# }
+# """
+
+
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     Lambda function to handle SageMaker pipeline failure notifications.
@@ -38,10 +60,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             # Extract SageMaker callback information
             callback_token = message_body.get("token")
             pipeline_execution_arn = message_body.get("pipelineExecutionArn")
-            step_name = message_body.get("stepName")
 
             # Extract custom pipeline data (sent by CallbackStep)
             pipeline_data = message_body.get("arguments", {})
+            step_name = pipeline_data["step_name"]
 
             # Format notification message
             notification_message = format_notification_message(pipeline_data, pipeline_execution_arn, step_name)
