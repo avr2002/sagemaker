@@ -532,6 +532,7 @@ if __name__ == "__main__":
 
 
 # Different type of steps in a SageMaker pipeline:
+# ref: https://docs.aws.amazon.com/sagemaker/latest/dg/build-and-manage-steps-types.html
 # StepTypeEnum:
 #   - CONDITION = "Condition"
 #   - CREATE_MODEL = "Model"

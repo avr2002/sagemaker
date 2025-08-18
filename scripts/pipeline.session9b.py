@@ -559,6 +559,7 @@ if __name__ == "__main__":
 
 
 # Different type of steps in a SageMaker pipeline:
+# https://docs.aws.amazon.com/sagemaker/latest/dg/build-and-manage-steps-types.html
 # StepTypeEnum:
 #   - CONDITION = "Condition"
 #   - CREATE_MODEL = "Model"
@@ -581,7 +582,7 @@ if __name__ == "__main__":
 
 ### Below I was experimenting with Lambda Step in SageMaker Pipelines.
 # I cannot come to like this because the "Lambda" class creates a new Lambda function
-# and you need create a new IAM role for the lambda function. This diverges the infrastructure that we
+# and you need create a new IAM role for the lambda function giving it FullSagemakerAccess. This diverges the infrastructure that we
 # are creating and tracking via our CDK Script. And couples the infrastructure and the Pipeline more tightly.
 
 
