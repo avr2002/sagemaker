@@ -23,10 +23,13 @@ export S3_BUCKET_NAME="ml-school-bucket-${AWS_ACCOUNT_ID_HASH}" # ml-school-buck
 
 THIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-# Data file path
-DATA_FILE_PATH="$THIS_DIR/data/penguins.csv" # Path to the data file on your local machine
-FILE_NAME="$(basename "$DATA_FILE_PATH")"
-S3_FILE_PATH="penguins/data/$FILE_NAME"      # Path to the data file in the S3 bucket
+# Data file path on your local machine
+DATA_FILE_PATH="$THIS_DIR/data/penguins.csv"
+if ! [ -f "$DATA_FILE_PATH" ]; then
+    echo "Data file not found: $DATA_FILE_PATH"
+    echo "Downloading data..."
+    uv run script/download_data.py
+fi
 
 
 ##########################
