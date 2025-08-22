@@ -28,12 +28,9 @@ S3_FILE_PATH="penguins/data/$FILE_NAME"      # Path to the data file in the S3 b
 ##########################
 
 function run-pipeline () {
-    uv run pipeline.py
-}
-
-function run-pipeline:local () {
-    # Set LOCAL_MODE for local development (any non-empty value enables local mode)
-    export LOCAL_MODE=1
+    if [[ "$1" == "--local" ]]; then
+        export LOCAL_MODE=1
+    fi
     uv run pipeline.py
 }
 

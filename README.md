@@ -26,9 +26,16 @@ Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/) before r
 
 - Create a `.env` file and add
   - `COMET_API_KEY`, `COMET_PROJECT_NAME`
-  - `S3_BUCKET_NAME`, `SAGEMAKER_EXECUTION_ROLE`
+  - `S3_BUCKET_NAME`, `SAGEMAKER_EXECUTION_ROLE`, `SQS_QUEUE_URL`
 
+-  Run the Pipeline:
+  ```bash
+  # to run the pipeline with SageMaker
+  ./run pipeline
 
+  # to run the pipeline locally
+  ./run pipeline --local
+  ```
 
 https://github.com/aws/amazon-sagemaker-examples/tree/main
 
