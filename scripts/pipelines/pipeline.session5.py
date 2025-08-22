@@ -40,12 +40,12 @@ THIS_DIR = Path(__file__).parent
 # Create a local Sagemaker session
 sagemaker_session = (
     LocalPipelineSession(default_bucket=BUCKET)
-    if env_vars["LOCAL_MODE"] == "true"
+    if os.getenv("LOCAL_MODE", None)
     else PipelineSession(default_bucket=BUCKET)
 )
 # https://docs.aws.amazon.com/sagemaker/latest/dg/notebooks-available-instance-types.html
 # locally instance_type can also be "local_gpu"
-instance_type = "local" if env_vars["LOCAL_MODE"] == "true" else "ml.m5.2xlarge"  # "ml.m5.xlarge"
+instance_type = "local" if os.getenv("LOCAL_MODE", None) else "ml.m5.2xlarge"  # "ml.m5.xlarge"
 
 # WARNING:sagemaker.workflow.utilities:Popping out 'ProcessingJobName' from the pipeline definition
 # by default since it will be overridden at pipeline execution time.

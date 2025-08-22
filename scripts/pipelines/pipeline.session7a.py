@@ -42,12 +42,12 @@ THIS_DIR = Path(__file__).parent
 # Create a local Sagemaker session
 sagemaker_session = (
     LocalPipelineSession(default_bucket=BUCKET)
-    if env_vars["LOCAL_MODE"] == "true"
+    if os.getenv("LOCAL_MODE", None)
     else PipelineSession(default_bucket=BUCKET)
 )
 # https://docs.aws.amazon.com/sagemaker/latest/dg/notebooks-available-instance-types.html
 # locally instance_type can also be "local_gpu"
-instance_type = "local" if env_vars["LOCAL_MODE"] == "true" else "ml.m5.2xlarge"  # "ml.m5.xlarge"
+instance_type = "local" if os.getenv("LOCAL_MODE", None) else "ml.m5.2xlarge"  # "ml.m5.xlarge"
 
 # WARNING:sagemaker.workflow.utilities:Popping out 'TrainingJobName' from the pipeline definition
 # by default since it will be overridden at pipeline execution time.
@@ -119,7 +119,9 @@ preprocessing_step = ProcessingStep(
                 output_name=output_name,
                 source=f"{SAGEMAKER_PROCESSING_DIR}/{output_name}",
                 destination=f"{S3_LOCATION}/preprocessing/{output_name}/",  # Added a trailing '/' because I got an error using "FastFile" mode in Training Step
-                s3_upload_mode=("Continuous" if LOCAL_MODE == "false" else "EndOfJob"),  # "Continuous" or "EndOfJob"
+                s3_upload_mode=(
+                    "EndOfJob" if os.getenv("LOCAL_MODE", None) else "Continuous"
+                ),  # "Continuous" or "EndOfJob"
                 # ^^^NOTE: RuntimeError: UploadMode: Continuous is not currently supported in Local Mode.
             )
             for output_name in [
@@ -315,7 +317,7 @@ evaluation_report = PropertyFile(
 # files that the Amazon SageMaker Pipelines service must index. This saves the property file for later use.
 
 
-if os.environ["LOCAL_MODE"] == "true":
+if os.getenv("LOCAL_MODE", None):
     # image_uri = "sagemaker-tf-training-toolkit-arm64:latest"
     eval_step_image_uri = build_docker_image(
         repository_name="sagemaker-tf-training-toolkit-arm64",
@@ -367,7 +369,9 @@ evaluation_step = ProcessingStep(
                 output_name="evaluation",  # The output name must match the "PropertyFile" output name
                 source=str(SAGEMAKER_PROCESSING_DIR / "evaluation"),
                 destination=f"{S3_LOCATION}/evaluation",
-                s3_upload_mode=("Continuous" if LOCAL_MODE == "false" else "EndOfJob"),  # "Continuous" or "EndOfJob"
+                s3_upload_mode=(
+                    "EndOfJob" if os.getenv("LOCAL_MODE", None) else "Continuous"
+                ),  # "Continuous" or "EndOfJob"
                 # ^^^NOTE: RuntimeError: UploadMode: Continuous is not currently supported in Local Mode.
             )
         ],

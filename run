@@ -12,7 +12,6 @@ export AWS_ACCOUNT_ID_HASH=$(echo -n "${AWS_ACCOUNT_ID}" | sha256sum | cut -c5-8
 
 export S3_BUCKET_NAME="ml-school-bucket-${AWS_ACCOUNT_ID_HASH}" # ml-school-bucket-6721
 
-# REPOSITORY_NAME="processing-job"  # ECR repository name
 # Source the .env file if it exists
 [ -f .env ] && source .env
 
@@ -29,6 +28,12 @@ S3_FILE_PATH="penguins/data/$FILE_NAME"      # Path to the data file in the S3 b
 ##########################
 
 function run-pipeline () {
+    uv run pipeline.py
+}
+
+function run-pipeline:local () {
+    # Set LOCAL_MODE for local development (any non-empty value enables local mode)
+    export LOCAL_MODE=1
     uv run pipeline.py
 }
 

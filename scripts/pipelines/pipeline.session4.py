@@ -34,18 +34,18 @@ env_vars = {
     "COMET_PROJECT_NAME": os.getenv("COMET_PROJECT_NAME", ""),
     "S3_BUCKET_NAME": os.getenv("S3_BUCKET_NAME", ""),
     "SAGEMAKER_EXECUTION_ROLE": os.getenv("SAGEMAKER_EXECUTION_ROLE", ""),
-    "LOCAL_MODE": os.getenv("LOCAL_MODE", ""),
+    # "LOCAL_MODE": os.getenv("LOCAL_MODE", None),
 }
 
 # Create a local Sagemaker session
 sagemaker_session = (
     LocalPipelineSession(default_bucket=BUCKET)
-    if env_vars["LOCAL_MODE"] == "true"
+    if os.getenv("LOCAL_MODE", None)
     else PipelineSession(default_bucket=BUCKET)
 )
 # https://docs.aws.amazon.com/sagemaker/latest/dg/notebooks-available-instance-types.html
 # locally instance_type can also be "local_gpu"
-instance_type = "local" if env_vars["LOCAL_MODE"] == "true" else "ml.m5.2xlarge"  # "ml.m5.xlarge"
+instance_type = "local" if os.getenv("LOCAL_MODE", None) else "ml.m5.2xlarge"  # "ml.m5.xlarge"
 
 # WARNING:sagemaker.workflow.utilities:Popping out 'ProcessingJobName' from the pipeline definition
 # by default since it will be overridden at pipeline execution time.
@@ -157,7 +157,7 @@ preprocessing_step = ProcessingStep(
 # docker build -t sagemaker-tf-training-toolkit-arm64:latest containers/Dockerfile
 # image_uri = "sagemaker-tf-training-toolkit-arm64:latest" if env_vars["LOCAL_MODE"] == "true" else None
 
-if os.environ["LOCAL_MODE"] == "true":
+if os.getenv("LOCAL_MODE", None):
     # image_uri = "sagemaker-tf-training-toolkit-arm64:latest"
     image_uri = build_docker_image(
         repository_name="sagemaker-tf-training-toolkit-arm64",

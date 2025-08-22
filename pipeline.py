@@ -44,7 +44,7 @@ from penguins.utils.docker import build_and_push_docker_image, build_docker_imag
 env_vars = {
     "COMET_API_KEY": os.getenv("COMET_API_KEY", ""),
     "COMET_PROJECT_NAME": os.getenv("COMET_PROJECT_NAME", ""),
-    "LOCAL_MODE": LOCAL_MODE,
+    # "LOCAL_MODE": LOCAL_MODE,
     "S3_BUCKET_NAME": BUCKET,
     "SAGEMAKER_EXECUTION_ROLE": SAGEMAKER_EXECUTION_ROLE,
 }
@@ -54,13 +54,11 @@ THIS_DIR = Path(__file__).parent
 
 # Create a local Sagemaker session
 sagemaker_session = (
-    LocalPipelineSession(default_bucket=BUCKET)
-    if env_vars["LOCAL_MODE"] == "true"
-    else PipelineSession(default_bucket=BUCKET)
+    LocalPipelineSession(default_bucket=BUCKET) if LOCAL_MODE else PipelineSession(default_bucket=BUCKET)
 )
 # https://docs.aws.amazon.com/sagemaker/latest/dg/notebooks-available-instance-types.html
 # locally instance_type can also be "local_gpu"
-instance_type = "local" if env_vars["LOCAL_MODE"] == "true" else "ml.m5.2xlarge"  # "ml.m5.xlarge"
+instance_type = "local" if LOCAL_MODE else "ml.m5.2xlarge"  # "ml.m5.xlarge"
 
 # define a parameter for the input data
 dataset_location = ParameterString(name="dataset-location", default_value=f"{S3_LOCATION}/data/")
@@ -134,9 +132,7 @@ preprocessing_step = ProcessingStep(
                 output_name=output_name,
                 source=f"{SAGEMAKER_PROCESSING_DIR}/{output_name}",
                 destination=f"{S3_LOCATION}/preprocessing/{output_name}/",  # Added a trailing '/' because I got an error using "FastFile" mode in Training Step
-                s3_upload_mode=(
-                    "Continuous" if not LOCAL_MODE == "true" else "EndOfJob"
-                ),  # "Continuous" or "EndOfJob"
+                s3_upload_mode=("EndOfJob" if LOCAL_MODE else "Continuous"),  # "Continuous" or "EndOfJob"
                 # ^^^NOTE: RuntimeError: UploadMode: Continuous is not currently supported in Local Mode.
             )
             for output_name in [
@@ -265,7 +261,7 @@ evaluation_report = PropertyFile(
 # files that the Amazon SageMaker Pipelines service must index. This saves the property file for later use.
 
 
-if os.environ["LOCAL_MODE"] == "true":
+if LOCAL_MODE:
     # image_uri = "sagemaker-tf-training-toolkit-arm64:latest"
     eval_step_image_uri = build_docker_image(
         repository_name="sagemaker-tf-training-toolkit-arm64",
@@ -324,7 +320,7 @@ evaluation_step = ProcessingStep(
                 output_name="evaluation",  # The output name must match the "PropertyFile" output name
                 source=str(SAGEMAKER_PROCESSING_DIR / "evaluation"),
                 destination=f"{S3_LOCATION}/evaluation",
-                s3_upload_mode="EndOfJob",  # "Continuous" if not LOCAL_MODE == "true" else "EndOfJob"
+                s3_upload_mode="EndOfJob",  # "Continuous" if not LOCAL_MODE else "EndOfJob"
                 # "Continuous" or "EndOfJob"
                 # ^^^NOTE: RuntimeError: UploadMode: Continuous is not currently supported in Local Mode.
             )
@@ -498,7 +494,7 @@ notify_pipeline_failure_step = CallbackStep(
 # Set the Condition Step
 condition_step = ConditionStep(
     name="check-model-performance",
-    display_name="Check Model Performance vs Baseline",
+    display_name="Check Model Perf. vs Baseline",
     conditions=[condition],
     if_steps=[register_model_step],
     else_steps=[notify_pipeline_failure_step, fail_step],
