@@ -2,11 +2,8 @@
     "recommendations": [
         // official python extensiosn
         "ms-python.python",
-        "ms-python.black-formatter",
-        "ms-python.pylint",
-        "ms-python.flake8",
         "ms-python.vscode-pylance",
-        "ms-python.isort",
+        "charliermarsh.ruff",
         "ms-python.mypy-type-checker",
         // official extension pack for jupyter notebooks
         "ms-toolsai.jupyter",
@@ -23,8 +20,7 @@
         // more detailed file icons in sidebar
         "PKief.material-icon-theme",
         // tools: git, docker
-        "eamodio.gitlens",
-        "ms-azuretools.vscode-docker",
+        "ms-azuretools.vscode-containers",
         // GitHub
         "github.vscode-github-actions",
         "GitHub.copilot",
