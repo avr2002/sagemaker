@@ -68,21 +68,6 @@ class SagemakerMLStack(Stack):
             # ],
         )
 
-        # 2. Create ECR Repository for Docker images
-        # self.ecr_repository = ecr.Repository(
-        #     self,
-        #     "ProcessingJobRepository",
-        #     repository_name="processing-job",
-        #     image_scan_on_push=True,
-        #     lifecycle_rules=[
-        #         ecr.LifecycleRule(
-        #             description="Keep only 10 most recent images",
-        #             max_image_count=10,
-        #         )
-        #     ],
-        #     removal_policy=RemovalPolicy.DESTROY,
-        # )
-
         # 3. Create SageMaker Execution Role with comprehensive permissions
         self.sagemaker_execution_role = iam.Role(
             self,
@@ -447,22 +432,6 @@ class SagemakerMLStack(Stack):
             export_name=f"{self.stack_name}-S3BucketName",
         )
 
-        # CfnOutput(
-        #     self,
-        #     "ECRRepositoryName",
-        #     value=self.ecr_repository.repository_name,
-        #     description="Name of the ECR repository for Docker images",
-        #     export_name=f"{self.stack_name}-ECRRepositoryName",
-        # )
-
-        # CfnOutput(
-        #     self,
-        #     "ECRRepositoryUri",
-        #     value=self.ecr_repository.repository_uri,
-        #     description="URI of the ECR repository",
-        #     export_name=f"{self.stack_name}-ECRRepositoryUri",
-        # )
-
         CfnOutput(
             self,
             "SageMakerExecutionRoleArn",
@@ -510,13 +479,6 @@ class SagemakerMLStack(Stack):
             value=f"https://{self.region}.console.aws.amazon.com/sagemaker/home?region={self.region}#/studio/{self.sagemaker_domain.ref}",
             description="AWS Console link to the SageMaker domain",
         )
-
-        # CfnOutput(
-        #     self,
-        #     "ECRConsoleLink",
-        #     value=f"https://{self.region}.console.aws.amazon.com/ecr/repositories/private/{self.account}/{self.ecr_repository.repository_name}",
-        #     description="AWS Console link to the ECR repository",
-        # )
 
         CfnOutput(
             self,
