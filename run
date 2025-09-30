@@ -2,9 +2,6 @@
 
 set -euox pipefail
 
-# Source the .env file if it exists
-[ -f .env ] && source .env # || echo ".env file not found!" && exit 1
-
 export AWS_PROFILE=sandbox
 export AWS_REGION=us-east-1
 export AWS_DEFAULT_REGION=${AWS_REGION}
@@ -37,6 +34,26 @@ fi
 ##########################
 
 function run-pipeline () {
+    local err_msg=$(cat << 'EOF'
+.env file not found, please create one with the following environment variables:
+
+    export COMET_API_KEY=<your_comet_api_key>
+    export COMET_PROJECT_NAME=<your_comet_project_name>
+    export S3_BUCKET_NAME=<your_s3_bucket_name>
+    export SAGEMAKER_EXECUTION_ROLE=<your_sagemaker_execution_role>
+    export SQS_QUEUE_URL=<your_sqs_queue_url>
+EOF
+)
+
+    # Source the .env file if it exists
+    [ -f "$THIS_DIR/.env" ] && source "$THIS_DIR/.env" || ((echo "$err_msg") && exit 1)
+
+    # Check if docker is running
+    if ! docker info > /dev/null 2>&1; then
+        echo "Error: Docker is not running."
+        return 1
+    fi
+
     if [[ "${1:-}" == "--local" ]]; then
         export LOCAL_MODE=1
     fi
@@ -46,7 +63,7 @@ function run-pipeline () {
 
 function cdk-bootstrap () {
     npm install -g aws-cdk
-    
+
     # Use cached account ID here too
     cdk bootstrap "aws://${AWS_ACCOUNT_ID}/${AWS_REGION}"
 }
@@ -183,7 +200,7 @@ function get-cached-aws-account-id {
     local cache_duration_hours=${1:-10}  # Default to 10 hours if no argument provided
     local cache_file="/tmp/.aws_account_id_cache_${AWS_PROFILE}"
     local cache_duration=$((cache_duration_hours * 3600))  # Convert hours to seconds
-    
+
     # Check if cache file exists and is not expired
     if [[ -f "$cache_file" ]]; then
         local file_age=$(( $(date +%s) - $(stat -f %m "$cache_file" 2>/dev/null || stat -c %Y "$cache_file" 2>/dev/null || echo 0) ))
@@ -192,7 +209,7 @@ function get-cached-aws-account-id {
             return
         fi
     fi
-    
+
     # Cache is expired or doesn't exist, fetch new account ID
     local account_id=$(aws sts get-caller-identity --profile $AWS_PROFILE --query "Account" --output text)
     echo "$account_id" > "$cache_file"
@@ -224,7 +241,7 @@ function clean {
 	  -name "*.pyc" \
 	  -not -path "*env/*" \
 	  -exec rm {} +
-	
+
 	# Clean AWS account ID cache
 	rm -f /tmp/.aws_account_id_cache_*
 }
