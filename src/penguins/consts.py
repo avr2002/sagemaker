@@ -2,10 +2,6 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from dotenv import load_dotenv
-
-load_dotenv()
-
 # Define the paths to the directories
 THIS_DIR: Path = Path(__file__).resolve().parent
 SRC_DIR: Path = THIS_DIR.parent
