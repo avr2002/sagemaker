@@ -2,7 +2,6 @@ import json
 import os
 from datetime import datetime, timezone
 from typing import Any, Dict
-from urllib import response
 
 import boto3
 

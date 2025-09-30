@@ -14,7 +14,6 @@ from pathlib import Path
 import sagemaker
 from sagemaker.estimator import Estimator
 from sagemaker.inputs import TrainingInput
-from sagemaker.lambda_helper import Lambda
 from sagemaker.model_metrics import MetricsSource, ModelMetrics
 from sagemaker.processing import FrameworkProcessor, ProcessingInput, ProcessingOutput
 from sagemaker.tensorflow.model import TensorFlowModel
@@ -23,9 +22,8 @@ from sagemaker.workflow.condition_step import ConditionStep
 from sagemaker.workflow.conditions import ConditionGreaterThanOrEqualTo
 from sagemaker.workflow.fail_step import FailStep
 from sagemaker.workflow.functions import Join, JsonGet
-from sagemaker.workflow.lambda_step import LambdaOutput, LambdaOutputTypeEnum, LambdaStep
 from sagemaker.workflow.model_step import ModelStep
-from sagemaker.workflow.parameters import ParameterFloat, ParameterString
+from sagemaker.workflow.parameters import ParameterString
 from sagemaker.workflow.pipeline import Pipeline
 from sagemaker.workflow.pipeline_context import LocalPipelineSession, PipelineSession
 from sagemaker.workflow.pipeline_definition_config import PipelineDefinitionConfig
