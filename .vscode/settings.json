@@ -1,11 +1,19 @@
 // hover over or get autocompletion for the settings keys in this file to learn about what they do
 {
-    "python.testing.pytestArgs": [
-        "tests"
+    "editor.rulers": [
+        {
+            "column": 99,
+            "color": "gray"
+        },
+        {
+            "column": 119,
+            "color": "green"
+        }
     ],
+    "editor.formatOnSave": true,
+    "python.testing.pytestArgs": ["tests"],
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
-    "editor.formatOnSave": true,
     "testing.defaultGutterClickAction": "debug",
     "python.analysis.inlayHints.pytestParameters": true,
     "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
@@ -23,6 +31,7 @@
     // .py settings
     "[python]": {
         "editor.codeActionsOnSave": {
+            "source.fixAll": "explicit",
             "source.organizeImports": "explicit"
         },
         "editor.formatOnSave": true,
@@ -32,14 +41,4 @@
     "python.analysis.indexing": true,
     "python.languageServer": "Pylance",
     "python.analysis.completeFunctionParens": true,
-    "editor.rulers": [
-        {
-            "column": 99,
-            "color": "gray"
-        },
-        {
-            "column": 119,
-            "color": "green"
-        }
-    ],
 }
