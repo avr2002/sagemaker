@@ -32,13 +32,7 @@ from sagemaker.workflow.pipeline_definition_config import PipelineDefinitionConf
 from sagemaker.workflow.properties import PropertyFile
 from sagemaker.workflow.steps import CacheConfig, ProcessingStep, TrainingStep
 
-from penguins.consts import (
-    BUCKET,
-    LOCAL_MODE,
-    S3_LOCATION,
-    SAGEMAKER_EXECUTION_ROLE,
-    SAGEMAKER_PROCESSING_DIR,
-)
+from penguins.consts import BUCKET, LOCAL_MODE, S3_LOCATION, SAGEMAKER_EXECUTION_ROLE, SAGEMAKER_PROCESSING_DIR
 from penguins.utils.docker import build_and_push_docker_image, build_docker_image
 
 env_vars = {
@@ -86,22 +80,29 @@ cache_config = CacheConfig(
 
 # ref: https://github.com/aws/amazon-sagemaker-examples/blob/main/sagemaker_processing/scikit_learn_data_processing_and_model_evaluation/scikit_learn_data_processing_and_model_evaluation.ipynb
 est_cls = sagemaker.sklearn.estimator.SKLearn
-# ref: https://docs.aws.amazon.com/sagemaker/latest/dg/sklearn.html
+# # ref: https://docs.aws.amazon.com/sagemaker/latest/dg/sklearn.html
 framework_version_str = "1.2-1"  # Sagemaker available Scikit-learn version
+
+processing_image_uri = build_and_push_docker_image(
+    repository_name="custom-sklearn-processing-container",
+    dockerfile_fpath=THIS_DIR / "containers/Dockerfile.preprocessing",
+    # force_rebuild=True,
+)
 
 framework_processor = FrameworkProcessor(
     base_job_name="data-preprocessing",
-    role=SAGEMAKER_EXECUTION_ROLE,
+    estimator_cls=est_cls,
+    framework_version=framework_version_str,  #  Value is ignored when `image_uri` is provided...vvv
+    image_uri=processing_image_uri,
     instance_count=1,
     instance_type=instance_type,
-    estimator_cls=est_cls,
-    framework_version=framework_version_str,
-    sagemaker_session=sagemaker_session,
     env=env_vars,
-    # Control where preprocessing code artifacts are stored
-    code_location=f"{S3_LOCATION}/preprocessing/",
-    # py_version="py3",
+    code_location=f"{S3_LOCATION}/preprocessing/",  # Control where preprocessing code artifacts are stored
+    # py_version="py3",  # AttributeError: Scikit-learn image only supports Python 3. Please use 'py3' for py_version.
+    role=SAGEMAKER_EXECUTION_ROLE,
+    sagemaker_session=sagemaker_session,
 )
+
 preprocessing_step = ProcessingStep(
     name="preprocess-data",
     display_name="Preprocess Data",
@@ -112,7 +113,8 @@ preprocessing_step = ProcessingStep(
         # While installing the local package (via pip install .) in requirements.txt, we need to pass the pyproject.toml and README.md files
         # Right now, we are not installing the local package because of dependency conflicts
         # dependencies=["src/penguins", "requirements.txt", "pyproject.toml", "README.md"],
-        dependencies=["src/penguins", "requirements.txt"],
+        # dependencies=["src/penguins", "requirements.txt"],
+        dependencies=["src/penguins"],
         inputs=[
             ProcessingInput(
                 source=dataset_location,
@@ -540,12 +542,13 @@ if __name__ == "__main__":
     )
 
     # Starts the pipeline execution.
-    pipeline.start(
-        # # You can start the pipeline execution with specific parameters
-        # parameters={"accuracy-threshold": 0.99},
-        # execution_display_name="penguins-pipeline-execution",
-        # execution_description="Executing Pipeline, overiding the default accuracy threshold to reach the fail step.",
-    )
+    pipeline.start()
 
-    # execution = pipeline.start()
-    # More info: https://docs.aws.amazon.com/sagemaker/latest/dg/run-pipeline.html
+    # ^^^You can start the pipeline execution with specific parameters
+    # pipeline.start(
+    #     parameters={"accuracy-threshold": 0.99},
+    #     execution_display_name="penguins-pipeline-execution",
+    #     execution_description="Executing Pipeline, overiding the default accuracy threshold to reach the fail step.",
+    # )
+
+    # More info: https://docs.aws.amazon.com/sagemaker/latest/dg/run-pipeline.html\
