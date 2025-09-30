@@ -21,9 +21,10 @@ from aws_cdk import aws_s3 as s3
 from aws_cdk import aws_s3_deployment as s3_deployment
 from aws_cdk import aws_sagemaker as sagemaker
 from aws_cdk import aws_sns as sns
-from aws_cdk import aws_sns_subscriptions as sns_subscriptions
 from aws_cdk import aws_sqs as sqs
 from constructs import Construct
+
+# from aws_cdk import aws_sns_subscriptions as sns_subscriptions
 
 #################
 # --- Stack --- #
@@ -519,6 +520,8 @@ class SagemakerMLStack(Stack):
 
 # CDK App
 app = cdk.App()
+
+cdk.Tags.of(app).add(key="x-project", value="ml-school")
 
 # Create the ML infrastructure stack
 SagemakerMLStack(
