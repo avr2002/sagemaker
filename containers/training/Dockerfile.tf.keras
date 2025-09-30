@@ -11,14 +11,15 @@ RUN apt-get update && \
 
 # Install deps
 # Install sagemaker-training toolkit that contains the common functionality necessary to create a container compatible with SageMaker AI and the Python SDK.
-RUN pip install --user --upgrade pip
+RUN pip install --upgrade pip
 RUN pip install --no-cache-dir \
     tensorflow==2.12.0 \
     scikit-learn \
     sagemaker-training \
     numpy \
     pandas \
-    comet-ml
+    comet-ml \
+    joblib
 
 # Set the working directory
 WORKDIR /opt/ml/code/
@@ -31,6 +32,12 @@ WORKDIR /opt/ml/code/
 # # Python and shell scripts are both supported.
 # ENV SAGEMAKER_PROGRAM train.py
 
+# Set some environment variables. PYTHONUNBUFFERED keeps Python from buffering our standard
+# output stream, which means that logs can be delivered to the user quickly. PYTHONDONTWRITEBYTECODE
+# keeps Python from writing the .pyc files which are unnecessary in this case. We also update
+# PATH so that the train and serve programs are found when the container is invoked.
+
 # Force Python to run in unbuffered mode - ensures stdout/stderr are not buffered
 # This makes logs appear immediately in Docker, which is useful for debugging and monitoring
 ENV PYTHONUNBUFFERED=TRUE
+ENV PYTHONDONTWRITEBYTECODE=TRUE
