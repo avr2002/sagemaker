@@ -42,11 +42,4 @@
             "color": "green"
         }
     ],
-    "terminal.integrated.mouseWheelZoom": true,
-    "editor.mouseWheelZoom": true,
-    "window.zoomLevel": 1.15,
-    "files.exclude": {
-        "**/.git": false
-    },
-    "files.autoSave": "afterDelay",
 }
