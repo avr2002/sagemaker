@@ -1,5 +1,5 @@
-# Use an ARM-compatible base image with Python
-FROM --platform=linux/arm64 python:3.10-slim-bookworm
+# https://docs.aws.amazon.com/sagemaker/latest/dg/build-your-own-processing-container.html
+FROM python:3.10-slim-bookworm
 
 # Install system dependencies including build tools for compiling packages
 RUN apt-get update && \
@@ -8,14 +8,15 @@ RUN apt-get update && \
 
 # Install deps
 # Install sagemaker-training toolkit that contains the common functionality necessary to create a container compatible with SageMaker AI and the Python SDK.
-RUN pip install --user --upgrade pip
+RUN pip install --upgrade pip
 RUN pip install --no-cache-dir \
-    tensorflow==2.12.0 \
-    sagemaker-training \
+    scikit-learn \
     numpy \
     pandas \
-    scikit-learn \
     comet-ml
+
+# Set the working directory
+WORKDIR /opt/ml/code/
 
 # Force Python to run in unbuffered mode - ensures stdout/stderr are not buffered
 # This makes logs appear immediately in Docker, which is useful for debugging and monitoring
