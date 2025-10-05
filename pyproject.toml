@@ -6,11 +6,11 @@ readme = "README.md"
 authors = [{ name = "avr2002", email = "avr13405@gmail.com" }]
 requires-python = "~=3.10.0"
 dependencies = [
+    "boto3>=1.40.31",
     "comet-ml>=3.50.0",
     "keras>=3.11.2",
     "numpy>=1.26.4",
     "pandas>=2.3.1",
-    "sagemaker-inference>=1.10.1",
     "sagemaker[local]>=2.250.0",
     "scikit-learn>=1.7.1",
     "tensorflow>=2.20.0",
@@ -22,12 +22,19 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 cdk = ["aws-cdk-lib>=2.208.0", "constructs>=10.4.2"]
+inference = [
+    "multi-model-server>=1.1.11",
+    "sagemaker-inference>=1.10.1",
+]
 notebook = ["ipykernel>=6.29.5", "jupyter>=1.1.1", "rich>=13.9.4"]
 static-code-qa = ["pre-commit>=4.2.0", "ruff>=0.12.7"]
 stubs = [
     "boto3-stubs[ecr,s3,sagemaker,sns]>=1.39.17",
 ]
 test = ["ipytest>=0.14.2", "pytest>=8.4.1", "pytest-cov>=6.2.1"]
+training = [
+    "sagemaker-training>=5.1.1",
+]
 
 # https://github.com/astral-sh/ruff?tab=readme-ov-file#configuration
 [tool.ruff]
