@@ -1,5 +1,4 @@
 # /// script
-# requires-python = ">=3.11"
 # dependencies = [
 #     "aws-cdk-lib>=2.201.0",
 #     "constructs>=10.4.2",
