@@ -189,8 +189,7 @@ if __name__ == "__main__":
         if comet_api_key and comet_project_name
         else None
     )
-
-    training_env = json.loads(os.environ.get("SM_TRAINING_ENV", {}))
+    training_env = json.loads(os.environ.get("SM_TRAINING_ENV", "{}"))
     job_name = training_env.get("job_name", None) if training_env else None
 
     # We want to use the SageMaker's training job name as the name
