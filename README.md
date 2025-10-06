@@ -24,14 +24,7 @@ Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/) before r
     ./run cdk-deploy
     ```
 
-- Create a `.env` file:
-    ```bash
-    export COMET_API_KEY=<your_comet_api_key>
-    export COMET_PROJECT_NAME=<your_comet_project_name>
-    export S3_BUCKET_NAME=<your_s3_bucket_name>
-    export SAGEMAKER_EXECUTION_ROLE=<your_sagemaker_execution_role>
-    export SQS_QUEUE_URL=<your_sqs_queue_url>
-    ```
+- Create a `.env` file based on the `env.example` file and fill in the required values.
 
 -  Run the Pipeline:
     ```bash
