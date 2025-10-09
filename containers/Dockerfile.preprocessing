@@ -3,21 +3,34 @@ FROM python:3.10-slim-bookworm
 
 # Install system dependencies including build tools for compiling packages
 RUN apt-get update && \
-    apt-get install -y build-essential gcc && \
+    apt-get install -y --no-install-recommends build-essential gcc curl ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# Install deps
-# Install sagemaker-training toolkit that contains the common functionality necessary to create a container compatible with SageMaker AI and the Python SDK.
-RUN pip install --upgrade pip
-RUN pip install --no-cache-dir \
-    scikit-learn \
-    numpy \
-    pandas \
-    comet-ml
-
 # Set the working directory
-WORKDIR /opt/ml/code/
+WORKDIR /opt/ml/processing/code/
+
+# Enable bytecode compilation
+ENV UV_COMPILE_BYTECODE=1
+
+# Copy the bare minimum files to install dependencies
+COPY pyproject.toml uv.lock README.md /opt/ml/processing/code/
+RUN mkdir -p /opt/ml/processing/code/src/penguins && \
+    touch /opt/ml/processing/code/src/penguins/__init__.py
+
+# Install dependencies
+RUN pip install --upgrade pip uv
+RUN uv sync \
+    --frozen --no-cache
+
+# copy the rest of the code
+COPY src/ /opt/ml/processing/code/src/
 
 # Force Python to run in unbuffered mode - ensures stdout/stderr are not buffered
 # This makes logs appear immediately in Docker, which is useful for debugging and monitoring
-ENV PYTHONUNBUFFERED=TRUE
+ENV PYTHONUNBUFFERED=TRUE \
+    PYTHONDONTWRITEBYTECODE=TRUE
+
+# Use the virtual environment automatically
+ENV VIRTUAL_ENV=/opt/ml/processing/code/.venv
+# Update PATH
+ENV PATH="/opt/ml/processing/code/.venv/bin:$PATH"

@@ -125,12 +125,6 @@ preprocessing_step = ProcessingStep(
     step_args=framework_processor.run(
         # job_name="data-preprocessing",
         code="src/penguins/preprocessor.py",
-        # source_dir="src/penguins",     # Check the doc-string to know more about this parameter
-        # While installing the local package (via pip install .) in requirements.txt, we need to pass the pyproject.toml and README.md files
-        # Right now, we are not installing the local package because of dependency conflicts
-        # dependencies=["src/penguins", "requirements.txt", "pyproject.toml", "README.md"],
-        # dependencies=["src/penguins", "requirements.txt"],
-        dependencies=["src/penguins"],
         inputs=[
             ProcessingInput(
                 source=dataset_location,
@@ -301,7 +295,6 @@ evaluation_step = ProcessingStep(
     display_name="Evaluate Model",
     step_args=evaluation_processor.run(
         code="src/penguins/evaluate.py",
-        # dependencies=["src/penguins", "requirements.txt"],
         # For Model Evaluation, we need the "test" dataset from "Pre-processing Step" and the trained model
         # from "Model Training/Model Tuning Step".
         inputs=[
