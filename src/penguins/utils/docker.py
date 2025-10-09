@@ -14,6 +14,18 @@ except ImportError:
     ...
 
 
+THIS_DIR = Path(__file__).parent
+
+
+# """
+# Docker manifest v2 Error:
+# ref:
+# - https://repost.aws/questions/QUYwYL0SKaTQWvQMyqCSBvdQ/manifest-error-when-staging-ml-model
+# - https://forums.docker.com/t/force-image-to-use-manifest-media-type-docker-v2-schema-2-instead-of-oci/144974/3
+# - https://docs.aws.amazon.com/AmazonECR/latest/userguide/image-manifest-formats.html
+# """
+
+
 def build_and_push_docker_image(
     repository_name: str,
     dockerfile_fpath: Path | str,
@@ -34,7 +46,7 @@ def build_and_push_docker_image(
     """
     dockerfile_fpath = Path(dockerfile_fpath)
 
-    if os.environ["LOCAL_MODE"] == "true":
+    if os.getenv("LOCAL_MODE"):
         # For local mode, just build the image locally
         build_docker_image(repository_name, dockerfile_fpath, tag=tag)
         return f"{repository_name}:{tag}"
@@ -54,16 +66,40 @@ def build_and_push_docker_image(
         return ecr_uri
 
     try:
-        # Build the Docker image
+        # Build the Docker image locally first
         build_docker_image(repository_name, dockerfile_fpath, tag=tag)
 
         # Login to ECR
         # https://boto3.amazonaws.com/v1/documentation/api/1.29.2/reference/services/ecr/client/get_authorization_token.html
         _login_to_ecr(ecr_client)
 
-        # Tag and push the image
-        subprocess.run(["docker", "tag", f"{repository_name}:{tag}", ecr_uri], check=True)
-        subprocess.run(["docker", "push", ecr_uri], check=True)
+        # # Tag and push the image
+        # subprocess.run(["docker", "tag", f"{repository_name}:{tag}", ecr_uri], check=True)
+
+        # push_env = os.environ.copy()
+        # push_env["DOCKER_CLI_EXPERIMENTAL"] = "enabled"
+        # subprocess.run(["docker", "push", ecr_uri, "--disable-content-trust"], check=True, env=push_env)
+
+        # Push with Docker v2 manifest format (required by SageMaker)
+
+        # Use buildx to push with Docker v2 manifest format (SageMaker compatible)
+        # This avoids OCI manifest issues that SageMaker doesn't support
+        buildx_command = [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/amd64",
+            "--provenance=false",  # Disable provenance attestations
+            "--sbom=false",  # Disable SBOM attestations
+            "--output",
+            f"type=image,name={ecr_uri},push=true,oci-mediatypes=false",
+            "--file",
+            str(dockerfile_fpath),
+            f"{THIS_DIR.parent.parent.parent.as_posix()}",
+        ]
+
+        subprocess.run(buildx_command, check=True, cwd=dockerfile_fpath.parent, env=os.environ.copy())
 
         print(f"Successfully built and pushed Docker image to {ecr_uri}")
         return ecr_uri
@@ -85,16 +121,22 @@ def build_docker_image(repository_name: str, dockerfile_fpath: Path, tag: str = 
     if not dockerfile_fpath.is_file():
         raise ValueError(f"Invalid Dockerfile path: {dockerfile_fpath=}")
 
-    if os.environ["LOCAL_MODE"] == "true":
-        command = f"docker build --tag {repository_name}:{tag} --file {str(dockerfile_fpath)} ."
+    # Set environment to force Docker v2 manifest format
+    build_env = os.environ.copy()
+
+    if os.getenv("LOCAL_MODE"):
+        command = f"docker build --tag {repository_name}:{tag} --file {str(dockerfile_fpath)} {THIS_DIR.parent.parent.parent.as_posix()}"
     else:
+        build_env["DOCKER_BUILDKIT"] = "0"  # Disable BuildKit to use legacy builder
+        build_env["DOCKER_DEFAULT_PLATFORM"] = "linux/amd64"  # Set default platform
         # For SageMaker environment build the image for amd64 architecture
-        command = f"docker build --platform linux/amd64 --tag {repository_name}:{tag} --file {str(dockerfile_fpath)} ."
+        command = f"docker build --platform linux/amd64 --tag {repository_name}:{tag} --file {str(dockerfile_fpath)} {THIS_DIR.parent.parent.parent.as_posix()}"
     try:
         subprocess.run(
             command.split(),
             check=True,
             cwd=dockerfile_fpath.parent,  # Set working directory to dockerfile directory
+            env=build_env,  # Use environment with DOCKER_BUILDKIT=0
             # capture_output=True,
             # text=True,
         )
