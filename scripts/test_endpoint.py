@@ -44,7 +44,7 @@ def test_endpoint_csv():
         species = prediction["prediction"]
         confidence = prediction["confidence"]
         probabilities = prediction["probabilities"]
-        print(f"  Penguin {i+1}: {species} (confidence: {confidence:.4f})")
+        print(f"  Penguin {i + 1}: {species} (confidence: {confidence:.4f})")
         print(f"    Probabilities: {probabilities}")
 
 
@@ -61,22 +61,22 @@ def test_endpoint_json():
                 "culmen_length_mm": 39.1,
                 "culmen_depth_mm": 18.7,
                 "flipper_length_mm": 181,
-                "body_mass_g": 3750
+                "body_mass_g": 3750,
             },
             {
                 "island": "Dream",
                 "culmen_length_mm": 46.5,
                 "culmen_depth_mm": 17.9,
                 "flipper_length_mm": 192,
-                "body_mass_g": 4150
+                "body_mass_g": 4150,
             },
             {
                 "island": "Biscoe",
                 "culmen_length_mm": 50.0,
                 "culmen_depth_mm": 19.5,
                 "flipper_length_mm": 196,
-                "body_mass_g": 3900
-            }
+                "body_mass_g": 3900,
+            },
         ]
     }
 
@@ -88,9 +88,7 @@ def test_endpoint_json():
 
     # Invoke endpoint
     response = runtime.invoke_endpoint(
-        EndpointName="penguins-endpoint",
-        ContentType="application/json",
-        Body=json_data
+        EndpointName="penguins-endpoint", ContentType="application/json", Body=json_data
     )
     print(f"Response status: {response['ResponseMetadata']['HTTPStatusCode']}")
 
@@ -103,7 +101,7 @@ def test_endpoint_json():
         species = prediction["prediction"]
         confidence = prediction["confidence"]
         probabilities = prediction["probabilities"]
-        print(f"  Penguin {i+1}: {species} (confidence: {confidence:.4f})")
+        print(f"  Penguin {i + 1}: {species} (confidence: {confidence:.4f})")
         print(f"    Probabilities: {probabilities}")
 
 
@@ -118,7 +116,7 @@ def test_single_prediction_json():
         "culmen_length_mm": 39.1,
         "culmen_depth_mm": 18.7,
         "flipper_length_mm": 181,
-        "body_mass_g": 3750
+        "body_mass_g": 3750,
     }
 
     json_data = json.dumps(single_penguin)
@@ -129,9 +127,7 @@ def test_single_prediction_json():
 
     # Invoke endpoint
     response = runtime.invoke_endpoint(
-        EndpointName="penguins-endpoint",
-        ContentType="application/json",
-        Body=json_data
+        EndpointName="penguins-endpoint", ContentType="application/json", Body=json_data
     )
     print(f"Response status: {response['ResponseMetadata']['HTTPStatusCode']}")
 
