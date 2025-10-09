@@ -7,8 +7,6 @@ import tarfile
 from pathlib import Path
 from typing import Optional, Union
 
-# ruff: fmt: off
-# ruff: fmt: on
 import keras
 import numpy as np
 import pandas as pd
@@ -17,7 +15,8 @@ from keras import Input
 from keras.layers import Dense
 from keras.models import Sequential
 from keras.optimizers import SGD
-from packaging import version
+
+# from packaging import version
 from sklearn.metrics import accuracy_score, precision_score, recall_score
 
 # ref: https://www.tensorflow.org/tfx/tutorials/serving/rest_simple#save_your_model
@@ -110,16 +109,18 @@ def train(
     val_recall = recall_score(y_true=y_validation, y_pred=predictions, average="weighted")
     print(f"Validation recall(weighted): {val_recall}")
 
-    # Starting on version 3, Keras changed the model saving format.
-    # Since we are running the training script using two different versions
-    # of Keras, we need to check to see which version we are using and save
-    # the model accordingly.
-    model_filepath = (
-        Path(model_directory) / "001"
-        if version.parse(keras.__version__) < version.parse("3")
-        else Path(model_directory) / "penguins.keras"
-    )
+    # # Starting on version 3, Keras changed the model saving format.
+    # # Since we are running the training script using two different versions
+    # # of Keras, we need to check to see which version we are using and save
+    # # the model accordingly.
+    # model_filepath = (
+    #     Path(model_directory) / "001"
+    #     if version.parse(keras.__version__) < version.parse("3")
+    #     else Path(model_directory) / "penguins.keras"
+    # )
 
+    # Save the model in Keras format
+    model_filepath = Path(model_directory) / "penguins.keras"
     model.save(model_filepath)
 
     # Let's save the transformation pipelines inside the
@@ -189,6 +190,10 @@ if __name__ == "__main__":
         if comet_api_key and comet_project_name
         else None
     )
+
+    # print all the environment variables available for debugging purpose
+    print(f"\n{os.environ=}\n")
+
     training_env = json.loads(os.environ.get("SM_TRAINING_ENV", "{}"))
     job_name = training_env.get("job_name", None) if training_env else None
 

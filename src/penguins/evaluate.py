@@ -4,13 +4,14 @@ import tarfile
 from pathlib import Path
 from typing import Optional
 
+import keras
 import numpy as np
 import pandas as pd
 from comet_ml import Experiment
-from packaging import version
 from sklearn.metrics import accuracy_score, confusion_matrix, precision_score, recall_score
-from tensorflow import keras
 
+# from tensorflow import keras
+# from packaging import version
 from penguins.consts import SAGEMAKER_PROCESSING_DIR
 from penguins.utils.get_baseline_accuracy import get_baseline_accuracy_of_last_registered_model
 
@@ -38,12 +39,12 @@ def evaluate(
     with tarfile.open(Path(model_path) / "model.tar.gz") as tar:
         tar.extractall(path=Path(model_path))
 
-    # Use the same version-based logic as in the training script
-    model_filepath = (
-        Path(model_path) / "001"
-        if version.parse(keras.__version__) < version.parse("3")
-        else Path(model_path) / "penguins.keras"
-    )
+    # Load the Keras model
+    model_filepath = Path(model_path) / "penguins.keras"
+    if not model_filepath.exists():
+        files = list(Path(model_path).glob("**/*"))
+        print(f"Files in {model_path=}:\n\t{files}\n")
+        raise FileNotFoundError(f"No penguins.keras model found at {model_path=}")
 
     model = keras.models.load_model(model_filepath)
 
