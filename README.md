@@ -1,5 +1,6 @@
 # MLOps on Sagemaker
 
+Building an end-to-end ML Pipeline on AWS Sagemaker.
 
 ## Setup
 
@@ -34,8 +35,6 @@ Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/) before r
     # to run the pipeline locally
     ./run pipeline --local
     ```
-
-https://github.com/aws/amazon-sagemaker-examples/tree/main
 
 ## Contributing
 
