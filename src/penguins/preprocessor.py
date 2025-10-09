@@ -3,7 +3,7 @@ from typing import Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-from sklearn.compose import ColumnTransformer, make_column_selector
+from sklearn.compose import ColumnTransformer  # make_column_selector
 from sklearn.impute import SimpleImputer
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
@@ -87,7 +87,8 @@ def preprocess_pipeline() -> Tuple[ColumnTransformer, ColumnTransformer]:
             (
                 "numeric",
                 numeric_transformer,
-                make_column_selector(dtype_exclude="object"),
+                # make_column_selector(dtype_exclude="object"),
+                ["culmen_length_mm", "culmen_depth_mm", "flipper_length_mm", "body_mass_g"],
             ),
             # Select the 'island' column and apply the categorical transformer
             ("categorical", categorical_transformer, ["island"]),
