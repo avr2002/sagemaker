@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# SageMaker Hosting looks for a 'serve' executable on PATH.
+# This script starts the SageMaker Inference Toolkit model server using our handler service.
+
+exec python -m penguins.train

@@ -6,18 +6,17 @@ https://sagemaker.readthedocs.io/en/stable/amazon_sagemaker_model_building_pipel
 https://github.com/aws/amazon-sagemaker-examples/tree/main
 """
 
-# A processing step requires a processor, a Python script that defines
-# the processing code, outputs for processing, and job arguments.
 import os
 from pathlib import Path
 from typing import Any
 
 import sagemaker
+from sagemaker import image_uris
 from sagemaker.estimator import Estimator
 from sagemaker.inputs import TrainingInput
+from sagemaker.model import Model
 from sagemaker.model_metrics import MetricsSource, ModelMetrics
-from sagemaker.processing import FrameworkProcessor, ProcessingInput, ProcessingOutput
-from sagemaker.tensorflow.model import TensorFlowModel
+from sagemaker.processing import FrameworkProcessor, ProcessingInput, ProcessingOutput, ScriptProcessor
 from sagemaker.tensorflow.processing import TensorFlowProcessor
 from sagemaker.workflow.callback_step import CallbackStep
 from sagemaker.workflow.condition_step import ConditionStep
@@ -38,7 +37,6 @@ from penguins.utils.docker import build_and_push_docker_image, build_docker_imag
 env_vars = {
     "COMET_API_KEY": os.getenv("COMET_API_KEY", ""),
     "COMET_PROJECT_NAME": os.getenv("COMET_PROJECT_NAME", ""),
-    # "LOCAL_MODE": LOCAL_MODE,
     "S3_BUCKET_NAME": BUCKET,
     "SAGEMAKER_EXECUTION_ROLE": SAGEMAKER_EXECUTION_ROLE,
 }
@@ -66,11 +64,30 @@ dataset_location = ParameterString(name="dataset-location", default_value=f"{S3_
 # it uses the result for the most recent successful execution.
 cache_config = CacheConfig(
     enable_caching=False,  # Enable or disable caching
-    expire_after="T3H",  # expiration time in ISO8601 duration string format - https://en.wikipedia.org/wiki/ISO_8601#Durations
+    expire_after="T6H",  # expiration time in ISO8601 duration string format - https://en.wikipedia.org/wiki/ISO_8601#Durations
 )
 # p30d: 30 days
 # P4DT12H: 4 days and 12 hours
 # T12H: 12 hours
+
+
+#####################
+### Docker Images ###
+#####################
+
+# Automatically build and push the Docker image
+processing_image_uri = build_and_push_docker_image(
+    repository_name="custom-sklearn-processing-container",
+    dockerfile_fpath=THIS_DIR / "containers/Dockerfile.preprocessing",
+    force_rebuild=True,
+)
+
+custom_training_image_uri = build_and_push_docker_image(
+    repository_name="custom-training-and-serving-container",
+    dockerfile_fpath=THIS_DIR / "containers/Dockerfile",
+    force_rebuild=True,
+)
+
 
 
 #######################
@@ -82,12 +99,6 @@ cache_config = CacheConfig(
 est_cls = sagemaker.sklearn.estimator.SKLearn
 # # ref: https://docs.aws.amazon.com/sagemaker/latest/dg/sklearn.html
 framework_version_str = "1.2-1"  # Sagemaker available Scikit-learn version
-
-processing_image_uri = build_and_push_docker_image(
-    repository_name="custom-sklearn-processing-container",
-    dockerfile_fpath=THIS_DIR / "containers/Dockerfile.preprocessing",
-    # force_rebuild=True,
-)
 
 framework_processor = FrameworkProcessor(
     base_job_name="data-preprocessing",
@@ -162,30 +173,18 @@ preprocessing_step = ProcessingStep(
 ### Training Step ###
 #####################
 
-# Automatically build and push the Docker image
-# image_uri = build_and_push_docker_image(
-#     # Create a custom container with keras with jax as the backend
-#     repository_name="custom-keras-jax-training-container",
-#     dockerfile_fpath=THIS_DIR / "containers/training/Dockerfile.keras.jax",
-# )
-image_uri = build_and_push_docker_image(
-    # Create a custom container with tensorflow keras -- We will serve this model using TF Serving
-    repository_name="custom-tf-keras-training-container",
-    dockerfile_fpath=THIS_DIR / "containers/training/Dockerfile.tf.keras",
-)
-
 custom_estimator = Estimator(
     base_job_name="custom-training-job",
-    image_uri=image_uri,
-    entry_point="src/penguins/train.py",
-    # container_entry_point=["python", "/opt/ml/code/train.py"],
-    # source_dir="src/penguins",  # Check the doc-string to know more about this parameter
-    dependencies=["src/penguins"],
+    # image_uri=custom_training_image_uri,
+    image_uri=custom_training_image_uri,
+    entry_point="containers/train",
     # SageMaker will pass these hyperparameters as arguments
     # to the entry point of the training script.
     hyperparameters={"epochs": 50, "batch_size": 32},
     # SageMaker will create these environment variables on the
     # Training Job instance.
+    # environment={"SAGEMAKER_PROGRAM": "src/penguins/train.py", **env_vars},
+    # environment={"SAGEMAKER_PROGRAM": "/usr/local/bin/train", **env_vars},
     environment=env_vars,
     # SageMaker will track these metrics as part of the experiment
     # associated to this pipeline. The metric definitions tells
@@ -263,15 +262,15 @@ evaluation_report = PropertyFile(
 # files that the Amazon SageMaker Pipelines service must index. This saves the property file for later use.
 
 
-if LOCAL_MODE:
-    # image_uri = "sagemaker-tf-training-toolkit-arm64:latest"
-    eval_step_image_uri = build_docker_image(
-        repository_name="sagemaker-tf-training-toolkit-arm64",
-        dockerfile_fpath=THIS_DIR / "containers/Dockerfile",
-        tag="latest",
-    )
-else:
-    eval_step_image_uri = None
+# if LOCAL_MODE:
+#     # image_uri = "sagemaker-tf-training-toolkit-arm64:latest"
+#     eval_step_image_uri = build_docker_image(
+#         repository_name="sagemaker-tf-training-toolkit-arm64",
+#         dockerfile_fpath=THIS_DIR / "containers/Dockerfile",
+#         tag="latest",
+#     )
+# else:
+#     eval_step_image_uri = None
 
 # The model group name used for Model Registry
 MODEL_PACKAGE_GROUP_NAME = "basic-penguins-model-group"
@@ -281,7 +280,7 @@ evaluation_processor = TensorFlowProcessor(
     code_location=f"{S3_LOCATION}/evaluation/",
     framework_version="2.12.0",
     py_version="py310",
-    image_uri=eval_step_image_uri,
+    image_uri=custom_training_image_uri,
     instance_count=1,
     instance_type=instance_type,
     env={
@@ -297,7 +296,7 @@ evaluation_step = ProcessingStep(
     display_name="Evaluate Model",
     step_args=evaluation_processor.run(
         code="src/penguins/evaluate.py",
-        dependencies=["src/penguins", "requirements.txt"],
+        # dependencies=["src/penguins", "requirements.txt"],
         # For Model Evaluation, we need the "test" dataset from "Pre-processing Step" and the trained model
         # from "Model Training/Model Tuning Step".
         inputs=[
@@ -331,7 +330,7 @@ evaluation_step = ProcessingStep(
     # When you create your ProcessingStep instance, add the property_files parameter to list all of the parameter
     # files that the Amazon SageMaker Pipelines service must index. This saves the property file for later use.
     property_files=[evaluation_report],
-    cache_config=cache_config,
+    cache_config=CacheConfig(enable_caching=False),
 )
 
 
