@@ -27,6 +27,17 @@ Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/) before r
 
 - Create a `.env` file based on the `env.example` file and fill in the required values.
 
+- Clean Up
+    ```bash
+    # Destroy infra
+    ./run cdk-destroy
+
+    # Clean up local files
+    ./run clean
+    ```
+
+## Usage
+
 -  Run the Pipeline:
     ```bash
     # to run the pipeline with SageMaker
@@ -35,6 +46,37 @@ Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/) before r
     # to run the pipeline locally
     ./run pipeline --local
     ```
+
+    ![Pipeline Run](./assets/pipeline-run.png)
+
+- Test the endpoint:
+    ```bash
+    ./run test-endpoint
+    ```
+
+    ```bash
+    Single penguin data:
+    {
+        "island": "Torgersen",
+        "culmen_length_mm": 39.1,
+        "culmen_depth_mm": 18.7,
+        "flipper_length_mm": 181,
+        "body_mass_g": 3750
+    }
+
+    Response status: 200
+    Result: {
+        'prediction': 'Adelie',
+        'confidence': 0.5893437266349792,
+        'probabilities': {
+            'Adelie': 0.5893437266349792,
+            'Chinstrap': 0.16670739650726318,
+            'Gentoo': 0.2439488023519516
+        }
+    }
+    ```
+
+    ![Endpoint Test](./assets/endpoint-test.png)
 
 ## Contributing
 
