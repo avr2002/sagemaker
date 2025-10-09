@@ -278,7 +278,7 @@ evaluation_report = PropertyFile(
 #     eval_step_image_uri = None
 
 # The model group name used for Model Registry
-MODEL_PACKAGE_GROUP_NAME = "basic-penguins-model-group"
+MODEL_PACKAGE_GROUP_NAME = "penguins-model-group"
 
 evaluation_processor = TensorFlowProcessor(
     base_job_name="model-evaluation-job",
