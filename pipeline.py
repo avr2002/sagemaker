@@ -88,6 +88,11 @@ custom_training_image_uri = build_and_push_docker_image(
     force_rebuild=True,
 )
 
+custom_serving_container = build_and_push_docker_image(
+    repository_name="custom-serving-container",
+    dockerfile_fpath=THIS_DIR / "containers/inference/Dockerfile",
+    force_rebuild=True,
+)
 
 
 #######################
@@ -352,22 +357,30 @@ evaluation_step = ProcessingStep(
 
 # Create a Sagemaker Model
 
-# from sagemaker.model import Model
-# Model(
-#     image_uri=custom_estimator.image_uri,
+# Sagemaker Repack Model Step:
+# https://github.com/aws/sagemaker-python-sdk/blob/b06d91d7617684cd61d412fac7141315dbe8c714/src/sagemaker/utils.py#L504-L550
+# tf_model = TensorFlowModel(
+#     # image_uri=custom_inference_image_uri,
+#     image_uri=custom_training_and_serving_image_uri,
 #     model_data=training_step.properties.ModelArtifacts.S3ModelArtifacts,  # model_assets
-#     source_dir="src/penguins",
-#     code_location=f"{S3_LOCATION}/training/",
-#     entry_point="src/penguins/train.py",
+#     framework_version="2.12.0",
+#     entry_point="penguins/inference.py",
+#     # source_dir="src/penguins",
+#     # dependencies=["src/penguins/requirements.txt"],
 #     role=SAGEMAKER_EXECUTION_ROLE,
 #     sagemaker_session=sagemaker_session,
 # )
-tf_model = TensorFlowModel(
-    model_data=training_step.properties.ModelArtifacts.S3ModelArtifacts,  # model_assets
-    framework_version="2.12.0",
+
+tf_model = Model(
+    image_uri=custom_serving_container,
+    model_data=training_step.properties.ModelArtifacts.S3ModelArtifacts,
+    # entry_point="src/penguins/inference.py",
+    code_location=f"{S3_LOCATION}/inference",
+    # env={"SAGEMAKER_PROGRAM": "penguins/inference.py", **env_vars},
     role=SAGEMAKER_EXECUTION_ROLE,
     sagemaker_session=sagemaker_session,
 )
+
 
 # Create Model Metrics Object
 model_metrics = ModelMetrics(
@@ -492,15 +505,46 @@ notify_pipeline_failure_step = CallbackStep(
     outputs=[],
 )
 
+
+#############################
+### Deploy Model Endpoint ###
+#############################
+
+# Deploy endpoint from registered model using Processing step
+
+container = image_uris.retrieve("sklearn", region="us-east-1", version="1.2-1")
+
+deployment_processor = ScriptProcessor(
+    base_job_name="deploy-endpoint-job",
+    command=["python3"],
+    image_uri=container,
+    instance_count=1,
+    instance_type=instance_type,
+    role=SAGEMAKER_EXECUTION_ROLE,
+    sagemaker_session=sagemaker_session,
+    env={**env_vars, "MODEL_PACKAGE_GROUP_NAME": MODEL_PACKAGE_GROUP_NAME, "AWS_REGION": os.environ["AWS_REGION"]},
+)
+
+model_deploy_step = ProcessingStep(
+    name="deploy-model-endpoint",
+    display_name="Deploy Model Endpoint",
+    depends_on=[register_model_step],
+    step_args=deployment_processor.run(
+        code="src/penguins/deploy_endpoint.py",
+        # arguments=["--inference-image", inference_image],
+    ),
+    cache_config=CacheConfig(enable_caching=False),
+)
+
+
 # Set the Condition Step
 condition_step = ConditionStep(
     name="check-model-performance",
     display_name="Check Model Perf. vs Baseline",
     conditions=[condition],
-    if_steps=[register_model_step],
+    if_steps=[register_model_step, model_deploy_step],
     else_steps=[notify_pipeline_failure_step, fail_step],
 )
-
 
 ################
 ### Pipeline ###
@@ -522,8 +566,9 @@ pipeline = Pipeline(
         preprocessing_step,
         training_step,
         evaluation_step,
-        # get_baseline_step,
         condition_step,
+        # register_model_step,
+        # model_deploy_step,
     ],
     sagemaker_session=sagemaker_session,
     pipeline_definition_config=pipeline_definition_config,
@@ -532,6 +577,8 @@ pipeline = Pipeline(
 if __name__ == "__main__":
     # # Note: sagemaker.get_execution_role does not work outside sagemaker environment
     # role = sagemaker.get_execution_role()
+
+    # print(pipeline.definition())
 
     # Submit the pipeline definition to the Pipelines service to create a pipeline if it doesn't exist, or update the pipeline if it does.
     # The role passed in is used by Pipelines to create all of the jobs defined in the steps.
@@ -550,4 +597,4 @@ if __name__ == "__main__":
     #     execution_description="Executing Pipeline, overiding the default accuracy threshold to reach the fail step.",
     # )
 
-    # More info: https://docs.aws.amazon.com/sagemaker/latest/dg/run-pipeline.html\
+    # More info: https://docs.aws.amazon.com/sagemaker/latest/dg/run-pipeline.html
