@@ -56,26 +56,29 @@ def main():
     try:
         sagemaker.create_endpoint_config(
             EndpointConfigName=endpoint_config_name,
-            ProductionVariants=[
-                {
-                    "ModelName": model_name,  # Use the model name, not ARN
-                    "VariantName": "primary",
-                    "InstanceType": "ml.m5.2xlarge",
-                    "InitialInstanceCount": 1,
-                    "InitialVariantWeight": 1.0,
-                }
-            ],
             # ProductionVariants=[
             #     {
-            #         "ModelName": model_name,
-            #         "VariantName": "AllTraffic",
-            #         "ServerlessConfig": {
-            #             "MemorySizeInMB": 4096,
-            #             "MaxConcurrency": 20,
-            #             # "ProvisionedConcurrency": 10,
-            #         },
+            #         "ModelName": model_name,  # Use the model name, not ARN
+            #         "VariantName": "primary",
+            #         "InstanceType": "ml.m5.2xlarge",
+            #         "InitialInstanceCount": 1,
+            #         "InitialVariantWeight": 1.0,
             #     }
             # ],
+            ProductionVariants=[
+                {
+                    "ModelName": model_name,
+                    "VariantName": "AllTraffic",
+                    "ServerlessConfig": {
+                        "MemorySizeInMB": 6144,
+                        "MaxConcurrency": 20,
+                        # "ProvisionedConcurrency": 10,
+                    },
+                }
+            ],
+            # CreateEndpointConfig operation: 1 validation error detected: Value '8096' at
+            # 'productionVariants.1.member.serverlessConfig.memorySizeInMB' failed to satisfy
+            # constraint: Member must have value less than or equal to 6144
         )
 
         # Create or update endpoint
