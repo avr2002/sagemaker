@@ -51,7 +51,7 @@ Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/) before r
 
 - Test the endpoint:
     ```bash
-    ./run test-endpoint
+    AWS_PROFILE=sandbox uv run scripts/test_endpoint.py
     ```
 
     ```bash
