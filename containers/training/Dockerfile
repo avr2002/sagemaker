@@ -7,13 +7,15 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends build-essential gcc curl ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-
-# Copy the SageMaker Training 'train' entrypoint script and make it executable
-COPY containers/train /opt/ml/code/train
-RUN chmod +x /opt/ml/code/train
-
 # Set the working directory
 WORKDIR /opt/ml/code/
+
+# Enable bytecode compilation
+ENV UV_COMPILE_BYTECODE=1
+
+# Copy the SageMaker Training 'train' entrypoint script and make it executable
+COPY containers/training/train /opt/ml/code/train
+RUN chmod +x /opt/ml/code/train
 
 COPY pyproject.toml uv.lock README.md /opt/ml/code/
 RUN mkdir -p /opt/ml/code/src/penguins && \
@@ -37,6 +39,9 @@ COPY src/ /opt/ml/code/src/
 ENV PYTHONUNBUFFERED=TRUE \
     PYTHONDONTWRITEBYTECODE=TRUE
 
+# Use the virtual environment automatically
+ENV VIRTUAL_ENV=/opt/ml/code/.venv
+# Update PATH
 ENV PATH="/opt/ml/code/.venv/bin:$PATH"
 
 # # The training script must be located in the /opt/ml/code directory.

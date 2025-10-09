@@ -83,8 +83,8 @@ processing_image_uri = build_and_push_docker_image(
 )
 
 custom_training_image_uri = build_and_push_docker_image(
-    repository_name="custom-training-and-serving-container",
-    dockerfile_fpath=THIS_DIR / "containers/Dockerfile",
+    repository_name="custom-training-container",
+    dockerfile_fpath=THIS_DIR / "containers/training/Dockerfile",
     force_rebuild=True,
 )
 
@@ -182,7 +182,7 @@ custom_estimator = Estimator(
     base_job_name="custom-training-job",
     # image_uri=custom_training_image_uri,
     image_uri=custom_training_image_uri,
-    entry_point="containers/train",
+    entry_point="containers/training/train",
     # SageMaker will pass these hyperparameters as arguments
     # to the entry point of the training script.
     hyperparameters={"epochs": 50, "batch_size": 32},
